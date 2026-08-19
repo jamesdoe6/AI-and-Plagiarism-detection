@@ -1,8 +1,8 @@
-/** Utilitaires reseau : timeout, backoff exponentiel, pool de concurrence. */
+/** Network helpers: timeout, exponential backoff, bounded-concurrency pool. */
 
 export class TimeoutError extends Error {
   constructor(ms) {
-    super(`Delai depasse apres ${ms} ms`);
+    super(`Timed out after ${ms} ms`);
     this.name = 'TimeoutError';
   }
 }
@@ -11,7 +11,7 @@ export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** fetch avec timeout dur et message d'erreur exploitable. */
+/** fetch with a hard timeout and an actionable error message. */
 export async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -26,9 +26,9 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
 }
 
 /**
- * Rejoue une operation avec backoff exponentiel (2s, 4s, 8s...).
- * Ne rejoue pas les erreurs 4xx explicites (cle invalide, quota, requete
- * malformee) : les rejouer ne sert a rien et gaspille le quota.
+ * Replay an operation with exponential backoff (2s, 4s, 8s...).
+ * Explicit 4xx errors (invalid key, quota, malformed request) are not replayed:
+ * retrying them achieves nothing and burns quota.
  */
 export async function withRetry(fn, { retries = 2, baseDelay = 800, onRetry } = {}) {
   let lastError;
@@ -47,7 +47,7 @@ export async function withRetry(fn, { retries = 2, baseDelay = 800, onRetry } = 
   throw lastError;
 }
 
-/** Execute des taches avec une concurrence bornee, en preservant l'ordre. */
+/** Run tasks with bounded concurrency, preserving result order. */
 export async function pool(items, worker, concurrency = 4, onProgress) {
   const results = new Array(items.length);
   let index = 0;
@@ -72,7 +72,7 @@ export async function pool(items, worker, concurrency = 4, onProgress) {
   return results;
 }
 
-/** Erreur reseau annotee comme definitive (pas de retry). */
+/** Network error flagged as final (no retry). */
 export function permanent(message, extra = {}) {
   const err = new Error(message);
   err.permanent = true;
@@ -80,7 +80,7 @@ export function permanent(message, extra = {}) {
   return err;
 }
 
-/** Laisse respirer le thread principal pour que l'UI se rafraichisse. */
+/** Let the main thread breathe so the UI can repaint. */
 export function yieldToUI() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }

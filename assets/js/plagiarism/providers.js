@@ -1,19 +1,20 @@
 /**
- * Fournisseurs de recherche web.
+ * Web search providers.
  *
- * L'application est 100 % cote client : elle ne peut appeler que des API qui
- * autorisent le CORS depuis un navigateur. Chaque fournisseur est isole
- * derriere la meme interface pour qu'en ajouter un se limite a ecrire une
- * fonction `search(query, settings)` renvoyant `[{url, title, snippet}]`.
+ * The application is 100 % client-side: it can only call APIs that allow CORS
+ * from a browser. Every provider sits behind the same interface, so adding one
+ * amounts to writing a `search(query, settings)` function returning
+ * `[{url, title, snippet}]`.
  *
- * Les cles d'API restent dans le localStorage du navigateur et ne sont
- * transmises qu'au fournisseur choisi.
+ * API keys stay in the browser's localStorage and are only ever sent to the
+ * chosen provider.
  */
 
 import { fetchWithTimeout, permanent } from '../util/async.js';
 import { PLAGIARISM } from '../config.js';
+import { t } from '../i18n/index.js';
 
-/** Erreur explicite : cle manquante, quota, CORS bloque, etc. */
+/** Explicit error: missing key, quota exhausted, CORS blocked, and so on. */
 export class ProviderError extends Error {
   constructor(message, { permanent: isPermanent = false, provider } = {}) {
     super(message);
@@ -25,8 +26,8 @@ export class ProviderError extends Error {
 
 const IMPLEMENTATIONS = {
   async google_cse(query, settings) {
-    if (!settings.searchApiKey) throw new ProviderError('Cle Google API manquante.', { permanent: true });
-    if (!settings.searchExtra) throw new ProviderError('ID du moteur (cx) manquant.', { permanent: true });
+    if (!settings.searchApiKey) throw new ProviderError(t('providers.errMissingKey', { provider: 'Google' }), { permanent: true });
+    if (!settings.searchExtra) throw new ProviderError(t('providers.errMissingCx'), { permanent: true });
     const url = new URL('https://www.googleapis.com/customsearch/v1');
     url.searchParams.set('key', settings.searchApiKey);
     url.searchParams.set('cx', settings.searchExtra);
@@ -44,7 +45,7 @@ const IMPLEMENTATIONS = {
   },
 
   async serper(query, settings) {
-    if (!settings.searchApiKey) throw new ProviderError('Cle Serper manquante.', { permanent: true });
+    if (!settings.searchApiKey) throw new ProviderError(t('providers.errMissingKey', { provider: 'Serper' }), { permanent: true });
     const response = await fetchWithTimeout('https://google.serper.dev/search', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'X-API-KEY': settings.searchApiKey },
@@ -60,7 +61,7 @@ const IMPLEMENTATIONS = {
   },
 
   async brave(query, settings) {
-    if (!settings.searchApiKey) throw new ProviderError('Cle Brave manquante.', { permanent: true });
+    if (!settings.searchApiKey) throw new ProviderError(t('providers.errMissingKey', { provider: 'Brave' }), { permanent: true });
     const url = new URL('https://api.search.brave.com/res/v1/web/search');
     url.searchParams.set('q', query);
     url.searchParams.set('count', '10');
@@ -77,7 +78,7 @@ const IMPLEMENTATIONS = {
   },
 
   async bing(query, settings) {
-    if (!settings.searchApiKey) throw new ProviderError('Cle Bing manquante.', { permanent: true });
+    if (!settings.searchApiKey) throw new ProviderError(t('providers.errMissingKey', { provider: 'Bing' }), { permanent: true });
     const url = new URL('https://api.bing.microsoft.com/v7.0/search');
     url.searchParams.set('q', query);
     url.searchParams.set('count', '10');
@@ -94,18 +95,17 @@ const IMPLEMENTATIONS = {
   },
 
   /**
-   * Endpoint maison : attendu en GET `?q=...`, renvoyant
-   * `{results: [{url, title, snippet}]}` ou directement un tableau.
-   * Permet de brancher n'importe quel moteur derriere un petit proxy sans
-   * modifier l'application.
+   * Your own endpoint: expected as GET `?q=...`, returning
+   * `{results: [{url, title, snippet}]}` or a bare array.
+   * Lets you plug any engine in behind a small proxy without touching the app.
    */
   async custom(query, settings) {
-    if (!settings.searchExtra) throw new ProviderError('URL de l\'endpoint manquante.', { permanent: true });
+    if (!settings.searchExtra) throw new ProviderError(t('providers.errMissingEndpoint'), { permanent: true });
     const url = new URL(settings.searchExtra);
     url.searchParams.set('q', query);
     const headers = settings.searchApiKey ? { authorization: `Bearer ${settings.searchApiKey}` } : {};
     const response = await fetchWithTimeout(url.toString(), { headers }, PLAGIARISM.requestTimeoutMs);
-    await assertOk(response, 'Endpoint personnalise');
+    await assertOk(response, 'Custom endpoint');
     const data = await response.json();
     const items = Array.isArray(data) ? data : (data.results ?? data.items ?? []);
     return items
@@ -118,26 +118,28 @@ const IMPLEMENTATIONS = {
   },
 };
 
-async function assertOk(response, providerName) {
+async function assertOk(response, provider) {
   if (response.ok) return;
   const body = await response.text().catch(() => '');
   const detail = body ? ` — ${body.slice(0, 180)}` : '';
-  if (response.status === 401 || response.status === 403) {
-    throw new ProviderError(`${providerName} : cle refusee (HTTP ${response.status})${detail}`, { permanent: true });
+  const status = response.status;
+
+  if (status === 401 || status === 403) {
+    throw new ProviderError(t('providers.errRejectedKey', { provider, status, detail }), { permanent: true });
   }
-  if (response.status === 429) {
-    throw new ProviderError(`${providerName} : quota depasse (HTTP 429). Reduisez le budget de requetes dans les reglages.`, { permanent: true });
+  if (status === 429) {
+    throw new ProviderError(t('providers.errQuota', { provider }), { permanent: true });
   }
-  if (response.status === 400) {
-    throw new ProviderError(`${providerName} : requete refusee (HTTP 400)${detail}`, { permanent: true });
+  if (status === 400) {
+    throw new ProviderError(t('providers.errBadRequest', { provider, detail }), { permanent: true });
   }
-  throw new ProviderError(`${providerName} : HTTP ${response.status}${detail}`);
+  throw new ProviderError(t('providers.errHttp', { provider, status, detail }));
 }
 
-/** Point d'entree unique. */
+/** Single entry point. */
 export async function search(query, settings) {
   const impl = IMPLEMENTATIONS[settings.searchProvider];
-  if (!impl) throw new ProviderError('Aucun fournisseur de recherche configure.', { permanent: true });
+  if (!impl) throw new ProviderError(t('providers.errNoProvider'), { permanent: true });
   const results = await impl(query, settings);
   return results.filter((r) => r.url && /^https?:/i.test(r.url));
 }
@@ -150,13 +152,9 @@ export function isSearchConfigured(settings) {
   return Boolean(settings.searchApiKey);
 }
 
-/** Message d'aide affiche quand la recherche n'est pas configurable. */
-export function providerHint(settings) {
-  if (settings.searchProvider === 'none') {
-    return 'Aucun moteur de recherche configure : seules les sources locales que vous fournissez seront comparees.';
-  }
-  if (!isSearchConfigured(settings)) {
-    return 'Le fournisseur selectionne est incomplet (cle ou parametre manquant). Ouvrez les reglages pour le completer.';
-  }
-  return '';
+/** Translation key of the hint shown when search is not usable. */
+export function providerHintKey(settings) {
+  if (settings.searchProvider === 'none') return 'providers.hintNone';
+  if (!isSearchConfigured(settings)) return 'providers.hintIncomplete';
+  return null;
 }

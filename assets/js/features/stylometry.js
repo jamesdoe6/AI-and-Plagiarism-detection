@@ -1,13 +1,13 @@
 /**
- * Stylometrie : signature d'auteur.
+ * Stylometry: the author signature.
  *
- * Chaque mot-outil devient une metrique independante (plusieurs centaines de
- * dimensions), plus une approximation de la distribution des categories
- * grammaticales (POS proxy) obtenue par listes fermees + suffixes.
+ * Each function word becomes an independent metric (several hundred dimensions),
+ * plus an approximation of the part-of-speech distribution (POS proxy) obtained
+ * from closed lists and suffixes.
  *
- * On mesure ensuite la *distance a un profil de reference machine* : les LLM
- * ont des preferences stables (sur-emploi de "the/of/and", de connecteurs,
- * sous-emploi de pronoms de premiere personne).
+ * The key measurement is then DRIFT ALONG THE TEXT: LLMs hold stable preferences
+ * (over-use of "the/of/and" and connectives, under-use of first-person
+ * pronouns), where a human author's profile shifts between paragraphs.
  */
 
 import { counter, mean, stdev, cv, entropy, normalizedEntropy } from '../core/stats.js';
@@ -20,7 +20,7 @@ export function stylometryFeatures(doc, lang = 'en') {
   const n = Math.max(1, tokens.length);
   const freq = counter(tokens);
 
-  // --- Frequences individuelles des mots-outils (≈ 200 a 350 metriques) ---
+  // --- Individual function-word frequencies (~200 to 350 metrics) ---
   const list = FUNCTION_WORDS[lang] ?? FUNCTION_WORDS.en;
   let functionTotal = 0;
   const profile = [];
@@ -69,7 +69,7 @@ export function stylometryFeatures(doc, lang = 'en') {
   f['pos.nominalRatio'] = (posCounts.nouns + posCounts.determiners) / n;
   f['pos.verbalRatio'] = (posCounts.verbs + posCounts.auxiliaries) / n;
 
-  // --- Pronoms de personne : marqueur d'implication humaine ---
+  // --- Personal pronouns: a marker of human involvement ---
   const first = lang === 'fr'
     ? ['je', "j'", 'me', 'moi', 'mon', 'ma', 'mes', 'nous', 'notre', 'nos']
     : ['i', 'me', 'my', 'mine', 'myself', 'we', 'us', 'our', 'ours'];
@@ -80,7 +80,7 @@ export function stylometryFeatures(doc, lang = 'en') {
   f['sty.thirdPerson'] = countAny(freq, third) / n;
   f['sty.personRatio'] = f['sty.firstPerson'] / Math.max(1e-6, f['sty.thirdPerson']);
 
-  // --- Regularite stylistique inter-paragraphes ---
+  // --- Stylistic regularity between paragraphs ---
   const paraProfiles = doc.paragraphs
     .filter((p) => words(p).length >= 25)
     .map((p) => {
@@ -91,7 +91,7 @@ export function stylometryFeatures(doc, lang = 'en') {
   f['sty.paragraphProfileDrift'] = profileDrift(paraProfiles);
   f['sty.paragraphProfileCount'] = paraProfiles.length;
 
-  // --- Variabilite de la richesse selon la fenetre ---
+  // --- Richness variability across windows ---
   const windows = chunk(tokens, 200).filter((c) => c.length >= 100);
   const ttrs = windows.map((c) => new Set(c).size / c.length);
   f['sty.windowTtrMean'] = mean(ttrs);
@@ -114,7 +114,7 @@ function chunk(arr, size) {
   return out;
 }
 
-/** Distance moyenne entre profils stylometriques de paragraphes consecutifs. */
+/** Mean distance between the stylometric profiles of consecutive paragraphs. */
 function profileDrift(profiles) {
   if (profiles.length < 2) return 0;
   let total = 0;

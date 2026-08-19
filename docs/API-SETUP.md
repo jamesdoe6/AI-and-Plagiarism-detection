@@ -1,141 +1,134 @@
-# Configuration des API
+# API setup
 
-L'application est **statique et 100 % côté client**. Elle ne peut appeler que
-des API autorisant le CORS depuis un navigateur. Aucune clé ne transite par un
-serveur tiers : elles restent dans le `localStorage` de votre navigateur et ne
-sont envoyées qu'au fournisseur sélectionné.
+The application is **static and 100 % client-side**. It can only call APIs that allow CORS from a
+browser. No key passes through any third-party server: keys stay in your browser's `localStorage`
+and are only ever sent to the provider you select.
 
-Tout se règle dans **⚙ Réglages**.
+Everything is configured in **⚙ Settings**.
 
----
-
-## Sans aucune API
-
-L'analyse IA fonctionne **entièrement hors ligne**. Seule la recherche web de
-plagiat nécessite un fournisseur.
-
-Pour détecter du plagiat sans API, utilisez le champ **Sources locales** :
-collez-y les documents de référence (copies d'élèves, corpus interne, articles
-sources), séparés par une ligne contenant `---`. La comparaison est faite
-localement, avec les mêmes mesures de similarité.
+> A condensed version of this guide, with a decision diagram, lives in the
+> [README](../README.md#-setting-up-the-search-apis).
 
 ---
 
-## Recherche web
+## Without any API
 
-### Google Programmable Search (recommandé pour démarrer)
+AI analysis runs **entirely offline**. Only plagiarism web search needs a provider.
 
-Quota gratuit : 100 requêtes/jour.
+To detect plagiarism without an API, use the **Local sources** field: paste your reference
+documents there (student papers, internal corpus, source articles), separated by a line containing
+`---`. Comparison happens locally, with the same similarity measures.
 
-1. Créez un moteur sur <https://programmablesearchengine.google.com/> et activez
-   « Rechercher sur l'ensemble du Web ».
-2. Notez l'**ID du moteur** (`cx`).
-3. Activez la *Custom Search API* dans la console Google Cloud et créez une clé.
-4. Dans Réglages : fournisseur « Google Programmable Search », collez la clé et
-   l'ID `cx`.
+---
+
+## Web search
+
+### Google Programmable Search *(recommended to start)*
+
+Free tier: 100 queries/day.
+
+1. Create an engine at <https://programmablesearchengine.google.com/> and enable
+   **Search the entire web**.
+2. Note the **Search engine ID** (`cx`).
+3. Enable the *Custom Search API* in the Google Cloud console and create a key.
+4. In Settings: provider *Google Programmable Search*, paste the key and the `cx` ID.
+
+Restrict the key to the Custom Search API. In a client-side app the key is visible to anyone using
+your deployment; for a public instance, put it behind a [custom endpoint](#custom-endpoint) instead.
 
 ### Serper.dev
 
-Résultats Google, 2 500 requêtes gratuites à l'inscription.
-Créez une clé sur <https://serper.dev> et collez-la. Rien d'autre à configurer.
+Google results, 2,500 free credits on sign-up.
+Create a key at <https://serper.dev> and paste it. Nothing else to configure.
 
 ### Brave Search API
 
-Offre gratuite de 2 000 requêtes/mois.
-Clé sur <https://brave.com/search/api/>.
+Free tier of 2,000 queries/month. Key at <https://brave.com/search/api/>.
 
 ### Bing Web Search (Azure)
 
-Créez une ressource *Bing Search v7* dans le portail Azure et récupérez la clé.
+Create a *Bing Search v7* resource in the Azure portal and copy the key.
 
-### Endpoint personnalisé
+### Custom endpoint
 
-Pour brancher n'importe quel moteur derrière votre propre proxy. L'application
-appelle `GET <votre-url>?q=<requête>` et attend :
+To plug any engine in behind your own proxy. The app calls `GET <your-url>?q=<query>` and expects:
 
 ```json
 { "results": [ { "url": "...", "title": "...", "snippet": "..." } ] }
 ```
 
-Un tableau nu est également accepté, de même que les clés `link`, `name` et
-`description`. Si vous renseignez une clé d'API, elle est envoyée en
-`Authorization: Bearer <clé>`.
+A bare array is accepted too, as are the keys `link`, `name` and `description`. If you supply an
+API key, it is sent as `Authorization: Bearer <key>`.
 
-C'est aussi la solution si votre moteur préféré n'autorise pas le CORS : un
-proxy de dix lignes suffit.
+This is also the answer when your preferred engine does not allow CORS: a ten-line proxy is enough.
+The README carries a [ready-to-deploy Cloudflare Worker](../README.md#option-e--custom-endpoint-your-own-proxy).
 
-### Budget de requêtes
+### Query budget
 
-Réglable de 4 à 120 requêtes par analyse (24 par défaut). Chaque requête
-consomme votre quota. Plus le budget est élevé, plus la couverture du document
-est fine — les passages interrogés sont répartis sur toute sa longueur, pas
-concentrés au début.
+Adjustable from 4 to 120 queries per analysis (24 by default). Each query consumes your quota. The
+higher the budget, the finer the document coverage — queried passages are spread across its whole
+length, not concentrated at the start.
 
 ---
 
-## Extraction du contenu des pages
+## Page content extraction
 
-Un navigateur ne peut pas télécharger une page tierce (politique d'origine
-croisée). Sans service d'extraction, la comparaison se limite aux extraits de
-quelques lignes renvoyés par le moteur — nettement moins fiable.
+A browser cannot download a third-party page (same-origin policy). Without an extraction service,
+comparison is limited to the few lines returned by the engine — markedly less reliable.
 
-Par défaut : `https://r.jina.ai/{url}`, qui renvoie le texte brut d'une page et
-autorise le CORS. `{url}` est remplacé par l'adresse candidate.
+Default: `https://r.jina.ai/{url}`, which returns a page's plain text and allows CORS. `{url}` is
+replaced by the candidate address.
 
-**Ce que cela implique :** les URL trouvées transitent par ce service. Votre
-texte, lui, n'est pas transmis. Si ce n'est pas acceptable, décochez
-« Télécharger les pages pour comparaison fine » ou remplacez le modèle d'URL par
-votre propre extracteur.
+**What this implies:** the URLs found pass through that service. Your text is not transmitted. If
+that is not acceptable, untick *Download pages for detailed comparison* or replace the URL template
+with your own extractor.
 
 ---
 
-## Détecteur IA distant (optionnel)
+## Remote AI detector (optional)
 
-⚠️ **Le texte analysé est envoyé au fournisseur choisi** (tronqué à 12 000
-caractères). Désactivé par défaut.
+⚠️ **The analysed text is sent to the chosen provider** (truncated to 12,000 characters). Off by
+default.
 
 ### Claude (Anthropic)
 
-Fournisseur « Claude », clé depuis <https://console.anthropic.com>.
-Modèle par défaut : `claude-sonnet-5`.
-L'en-tête `anthropic-dangerous-direct-browser-access` est envoyé automatiquement,
-il est nécessaire pour appeler l'API depuis un navigateur.
+Provider *Claude*, key from <https://console.anthropic.com>.
+Default model: `claude-sonnet-5`.
+The `anthropic-dangerous-direct-browser-access` header is sent automatically; it is required to call
+the API from a browser.
 
-### Endpoint compatible OpenAI
+### OpenAI-compatible endpoint
 
-Pour OpenAI, un modèle local (Ollama, LM Studio, vLLM) ou tout service exposant
-`/chat/completions`. Renseignez l'URL de base (sans `/chat/completions`), la clé
-et le nom du modèle.
+For OpenAI, a local model (Ollama, LM Studio, vLLM) or any service exposing `/chat/completions`.
+Enter the base URL (without `/chat/completions`), the key and the model name.
 
-Un modèle local évite complètement l'envoi de données vers un tiers.
+A local model avoids sending data to a third party entirely.
 
-### Hugging Face Inference (classifieur)
+### Hugging Face Inference (classifier)
 
-Branche un vrai classifieur « humain vs IA ». Modèle par défaut :
+Plugs in a genuinely trained "human vs AI" classifier. Default model:
 `openai-community/roberta-base-openai-detector`.
 
-Autres modèles utilisables : `Hello-SimpleAI/chatgpt-detector-roberta`,
-`desklib/ai-text-detector-v1.01`.
+Other usable models: `Hello-SimpleAI/chatgpt-detector-roberta`, `desklib/ai-text-detector-v1.01`.
 
-Le texte est découpé en segments d'environ 1 400 caractères sur les frontières de
-phrases (8 segments maximum), et les scores sont moyennés. Une forte dispersion
-entre segments est signalée : elle indique souvent un texte mixte humain + IA.
+The text is split into ~1,400-character segments on sentence boundaries (8 segments maximum) and the
+scores are averaged. High dispersion between segments is flagged: it often indicates mixed
+human + AI text.
 
-> Ces modèles publics ont été entraînés sur des générations anciennes. Ils
-> apportent une voix supplémentaire à l'ensemble, pas un verdict.
+> These public models were trained on older generations. They add a voice to the ensemble, not a
+> verdict.
 
 ---
 
-## Dépannage
+## Troubleshooting
 
-| Symptôme | Cause probable |
+| Symptom | Likely cause |
 |---|---|
-| « cle refusee (HTTP 401/403) » | Clé invalide, ou API non activée côté fournisseur |
-| « quota depasse (HTTP 429) » | Quota épuisé — réduisez le budget de requêtes |
-| « Lecture impossible de … » | Le service d'extraction n'a pas pu lire la page (paywall, robots, timeout). L'analyse continue sur l'extrait de recherche |
-| « Delai depasse » | Réseau lent ou fournisseur indisponible. Les requêtes sont rejouées deux fois avec un délai croissant |
-| Erreur CORS en console | Le fournisseur n'autorise pas les appels navigateur : passez par un endpoint personnalisé |
+| `key rejected (HTTP 401/403)` | Invalid key, or API not enabled on the provider side |
+| `quota exceeded (HTTP 429)` | Quota exhausted — lower the query budget |
+| `Could not read …` | The extraction service could not read the page (paywall, robots, timeout). The analysis continues on the search snippet |
+| `Timed out` | Slow network or provider unavailable. Queries are retried twice with growing backoff |
+| CORS error in the console | The provider does not allow browser calls: use a custom endpoint |
 
-Le journal affiché pendant l'analyse détaille chaque incident. Les erreurs
-n'interrompent jamais l'analyse : le score de plagiat est alors partiel, et
-l'interface l'indique explicitement comme un minorant.
+The log shown during analysis details every incident. Errors never abort the analysis: the
+plagiarism score is then partial, and the interface flags it explicitly as a lower bound.

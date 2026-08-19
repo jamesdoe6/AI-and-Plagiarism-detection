@@ -1,30 +1,31 @@
 /**
- * Detecteur 8 — Redondance mesuree par compression.
+ * Detector 8 — Redundancy measured by compression.
  *
- * Le taux de compression gzip est une mesure d'information independante de
- * toutes les heuristiques linguistiques : plus un texte reprend ses propres
- * sequences, mieux il se compresse. C'est un signal orthogonal aux autres
- * detecteurs, ce qui est l'interet meme d'un ensemble.
+ * The gzip compression ratio is an information measure independent of every
+ * linguistic heuristic: the more a text reuses its own sequences, the better it
+ * compresses. That makes it a signal orthogonal to the other detectors, which
+ * is the whole point of an ensemble.
  *
- * Calibration : le taux brut depend fortement de la longueur. On utilise donc
- * le *gain structurel* = taux du texte / taux du meme texte aux mots melanges.
- * Cette ligne de base nulle neutralise l'effet du vocabulaire et de la taille.
+ * Calibration: the raw ratio depends heavily on length. We therefore use the
+ * STRUCTURAL GAIN = ratio of the text / ratio of the same text with its words
+ * shuffled. That null baseline neutralises the effect of vocabulary and size.
  *
- * Restriction assumee : en dessous d'environ 600 mots, gzip n'a pas assez de
- * matiere pour que ce rapport soit stable (les valeurs observees se tassent
- * toutes autour de 1,00, sans lien avec l'origine du texte). Dans ce cas le
- * detecteur se declare *indisponible* plutot que de voter au hasard — un
- * detecteur qui s'abstient vaut mieux qu'un detecteur qui bruite l'ensemble.
+ * Deliberate restriction: below roughly 600 words gzip has too little material
+ * for the ratio to be stable (observed values all cluster around 1.00, with no
+ * relation to the text's origin). In that case the detector declares itself
+ * UNAVAILABLE rather than voting at random — a detector that abstains is worth
+ * more than one that adds noise to the ensemble.
  */
 
-import { combine, evidence, lengthConfidence, ramp, get } from './base.js';
+import { combine, evidence, lengthConfidence, ramp, get, pct } from './base.js';
 
+const K = 'detectors.compression';
 const MIN_WORDS = 600;
 
 export const compressionDetector = {
   id: 'compression',
-  label: 'Redondance (compression)',
-  description: 'Gain de compression structurel et reprise de n-grammes ; requiert au moins 600 mots.',
+  labelKey: `${K}.label`,
+  descriptionKey: `${K}.description`,
 
   run({ features, doc }) {
     const gain = features['rep.gzipStructuralGain'];
@@ -34,13 +35,12 @@ export const compressionDetector = {
     if (!hasGain || !enoughText) {
       return {
         id: this.id,
-        label: this.label,
+        labelKey: this.labelKey,
         score: 0.5,
         confidence: 0,
         unavailable: true,
-        error: !hasGain
-          ? 'API de compression indisponible dans ce navigateur.'
-          : `Texte trop court (${doc.wordCount} mots, minimum ${MIN_WORDS}) pour que le gain de compression soit stable.`,
+        errorKey: !hasGain ? `${K}.unavailableApi` : `${K}.unavailableShort`,
+        errorParams: { words: doc.wordCount, min: MIN_WORDS },
         evidence: [],
       };
     }
@@ -50,8 +50,8 @@ export const compressionDetector = {
     const globalOverlap = get(features, 'rep.globalSentenceOverlap');
     const ngram3 = get(features, 'ent.ngramDiversity3', 1);
 
-    // Gain structurel : ~0,97 pour de la prose variee, nettement plus bas quand
-    // le texte reprend massivement ses propres tournures.
+    // Structural gain: ~0.97 for varied human prose, distinctly lower when the
+    // text massively reuses its own turns of phrase.
     const s1 = ramp(gain, 0.985, 0.900);
     const s2 = ramp(repeat4, 0.004, 0.045);
     const s3 = ramp(repeat6, 0.001, 0.02);
@@ -68,15 +68,14 @@ export const compressionDetector = {
 
     return {
       id: this.id,
-      label: this.label,
+      labelKey: this.labelKey,
       score,
       confidence: lengthConfidence(doc.wordCount) * 0.8,
       evidence: [
-        evidence('Gain de compression structurel', gain.toFixed(4), s1,
-          'Rapport entre le texte et sa version aux mots melanges ; plus il est bas, plus le texte reprend ses propres sequences.'),
-        evidence('4-grammes repetes', `${(repeat4 * 100).toFixed(2)} %`, s2),
-        evidence('6-grammes repetes', `${(repeat6 * 100).toFixed(2)} %`, s3),
-        evidence('Recouvrement global entre phrases', `${(globalOverlap * 100).toFixed(1)} %`, s4),
+        evidence(`${K}.ev1`, gain.toFixed(4), s1, `${K}.ev1Hint`),
+        evidence(`${K}.ev2`, pct(repeat4, 2), s2),
+        evidence(`${K}.ev3`, pct(repeat6, 2), s3),
+        evidence(`${K}.ev4`, pct(globalOverlap), s4),
       ],
     };
   },

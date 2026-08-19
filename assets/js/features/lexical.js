@@ -1,10 +1,10 @@
 /**
- * Metriques lexicales : richesse, diversite, morphologie des mots.
+ * Lexical metrics: richness, diversity, word morphology.
  *
- * Interet : les LLM produisent un vocabulaire dont la diversite est *reguliere*
- * (ni pauvre ni exceptionnellement riche) et evitent les mots tres rares comme
- * les repetitions maladroites. Les indices classiques de richesse lexicale
- * (TTR, Yule K, Honore R, Brunet W) capturent cette regularite.
+ * Why they matter: LLMs produce vocabulary whose diversity is REGULAR (neither
+ * impoverished nor exceptionally rich) and avoid both very rare words and clumsy
+ * repetition. The classic richness indices (TTR, Yule K, Honoré R, Brunet W)
+ * capture that regularity.
  */
 
 import { counter, mean, stdev, cv, skewness, kurtosis, gini, entropy, median, quantile } from '../core/stats.js';
@@ -52,7 +52,7 @@ export function lexicalFeatures(doc) {
   f['lex.veryLongWordRatio'] = lengths.filter((l) => l >= 12).length / n;
   f['lex.shortWordRatio'] = lengths.filter((l) => l <= 3).length / n;
 
-  // Histogramme des longueurs de mots : 18 metriques supplementaires.
+  // Word-length histogram: 18 further metrics.
   const bins = new Array(MAX_WORD_BIN).fill(0);
   for (const l of lengths) bins[Math.min(l, MAX_WORD_BIN) - 1] += 1;
   bins.forEach((count, i) => { f[`lex.wordLenBin${i + 1}`] = count / n; });
@@ -65,7 +65,7 @@ export function lexicalFeatures(doc) {
   f['lex.top50Share'] = topKShare(freq, 50) / n;
   f['lex.zipfSlope'] = zipfSlope(freq);
 
-  // Morphologie
+  // Morphology
   const capitalized = doc.tokens.filter((w) => /^[A-ZÀ-Þ]/.test(w)).length;
   f['lex.capitalizedRatio'] = capitalized / n;
   f['lex.allCapsRatio'] = doc.tokens.filter((w) => w.length > 1 && w === w.toUpperCase() && /[A-ZÀ-Þ]/.test(w)).length / n;
@@ -80,7 +80,7 @@ function topKShare(freq, k) {
   return [...freq.values()].sort((a, b) => b - a).slice(0, k).reduce((a, b) => a + b, 0);
 }
 
-/** Moving Average TTR : robuste a la longueur du texte, contrairement au TTR brut. */
+/** Moving Average TTR: robust to text length, unlike raw TTR. */
 export function movingAverageTtr(tokens, window = 100) {
   if (tokens.length < window) return new Set(tokens).size / Math.max(1, tokens.length);
   let total = 0;
@@ -123,7 +123,7 @@ function simpsonD(freq, n) {
   return total / (n * (n - 1));
 }
 
-/** Pente de la droite log(rang)/log(frequence) : regularite zipfienne du texte. */
+/** Slope of the log(rank)/log(frequency) line: the text's Zipfian regularity. */
 function zipfSlope(freq) {
   const sorted = [...freq.values()].sort((a, b) => b - a).slice(0, 200);
   if (sorted.length < 10) return 0;

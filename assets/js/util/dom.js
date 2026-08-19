@@ -1,4 +1,4 @@
-/** Helpers DOM minimalistes (pas de framework). */
+/** Minimal DOM helpers (no framework). */
 
 export const $ = (selector, root = document) => root.querySelector(selector);
 export const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
@@ -27,7 +27,7 @@ export function clear(node) {
   return node;
 }
 
-/** Echappe le HTML : tout contenu venant du web ou de l'utilisateur passe par la. */
+/** Escape HTML: every piece of web- or user-supplied content goes through this. */
 export function escapeHtml(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;')

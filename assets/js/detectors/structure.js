@@ -1,21 +1,22 @@
 /**
- * Detecteur 6 — Mise en forme et organisation.
+ * Detector 6 — Formatting and organisation.
  *
- * Les reponses de chatbots ont une architecture reconnaissable : introduction
- * annoncant le plan, listes a puces de longueur homogene, gras sur les
- * intitules, conclusion recapitulative. Ce detecteur mesure cette "forme de
- * reponse".
+ * Chatbot answers have a recognisable architecture: an introduction announcing
+ * the plan, bullet lists of uniform length, bold on labels, a recap conclusion.
+ * This detector measures that "answer shape".
  *
- * Limite : un article de blog professionnel ou une documentation technique
- * presente naturellement cette structure. Poids faible dans l'ensemble.
+ * Limitation: a professional blog post or technical documentation naturally
+ * shows this structure. Low weight in the ensemble.
  */
 
-import { combine, evidence, lengthConfidence, ramp, get } from './base.js';
+import { combine, evidence, lengthConfidence, ramp, get, pct, num } from './base.js';
+
+const K = 'detectors.structure';
 
 export const structureDetector = {
   id: 'structure',
-  label: 'Structure et mise en forme',
-  description: 'Listes homogenes, titres, gras, conclusion recapitulative : la « forme de reponse » de chatbot.',
+  labelKey: `${K}.label`,
+  descriptionKey: `${K}.description`,
 
   run({ features, doc }) {
     const bulletRatio = get(features, 'mk.bulletLineRatio');
@@ -27,12 +28,12 @@ export const structureDetector = {
     const imperatives = get(features, 'mk.imperativeOpeners');
 
     const text = doc.text.toLowerCase();
-    const hasConclusion = /(^|\n)\s*(in conclusion|to summarize|in summary|en conclusion|pour conclure|en resume|pour resumer)/i.test(doc.text) ? 1 : 0;
+    const hasConclusion = /(^|\n)\s*(in conclusion|to summarize|to summarise|in summary|en conclusion|pour conclure|en resume|pour resumer)/i.test(doc.text) ? 1 : 0;
     const hasPlanIntro = /(this article|in this (post|article|guide)|cet article|dans cet article|nous allons voir|we will explore)/i.test(text) ? 1 : 0;
 
-    // Texte en prose continue : l'absence de listes et de titres n'est pas un
-    // indice d'humanite, c'est simplement un autre format. On neutralise donc
-    // ces signaux au lieu de les compter comme des votes "humain".
+    // Continuous prose: the absence of lists and headings is not evidence of
+    // humanity, it is simply another format. We neutralise these signals rather
+    // than count them as "human" votes.
     const plainProse = bulletRatio === 0 && headings === 0 && bold === 0;
 
     const s1 = ramp(bulletRatio, 0.02, 0.30);
@@ -59,16 +60,15 @@ export const structureDetector = {
 
     return {
       id: this.id,
-      label: this.label,
+      labelKey: this.labelKey,
       score,
       confidence: Math.min(0.7, lengthConfidence(doc.wordCount)),
       evidence: [
-        evidence('Lignes en liste', `${(bulletRatio * 100).toFixed(1)} %`, s1),
-        evidence('Homogeneite des puces', bulletUniform.toFixed(2), s2,
-          'Des items de longueur quasi identique sont un signe de generation.'),
-        evidence('Paragraphes de taille homogene', paraUniform.toFixed(2), s6),
-        evidence('Conclusion recapitulative explicite', hasConclusion ? 'oui' : 'non', s7),
-        evidence('Titres / intertitres', String(headings), s3),
+        evidence(`${K}.ev1`, pct(bulletRatio), s1),
+        evidence(`${K}.ev2`, bulletUniform.toFixed(2), s2, `${K}.ev2Hint`),
+        evidence(`${K}.ev3`, paraUniform.toFixed(2), s6),
+        evidence(`${K}.ev4`, { key: hasConclusion ? `${K}.yes` : `${K}.no` }, s7),
+        evidence(`${K}.ev5`, String(headings), s3),
       ],
     };
   },

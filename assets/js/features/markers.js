@@ -1,11 +1,11 @@
 /**
- * Metriques lexicales de surface : marqueurs de style LLM, connecteurs,
- * hedging, marques de subjectivite, bruit humain, formatage.
+ * Surface lexical metrics: LLM style markers, connectives, hedging, subjectivity
+ * markers, human noise, formatting.
  *
- * Chaque expression du lexique devient une metrique (≈ 250 metriques), plus des
- * agregats. Ces signaux sont volontairement peu ponderes : ils sont faciles a
- * contourner et produisent des faux positifs sur les textes academiques ou
- * institutionnels, qui emploient naturellement ce registre.
+ * Each lexicon entry becomes a metric (~250 in total), plus aggregates. These
+ * signals are deliberately weighted low: they are easy to circumvent and produce
+ * false positives on academic and institutional writing, which naturally uses
+ * this register.
  */
 
 import { AI_PHRASES, TRANSITIONS, HEDGES, PERSONAL_MARKERS, HUMAN_NOISE } from '../data/ai-markers.js';
@@ -19,7 +19,7 @@ export function markerFeatures(doc, lang = 'en') {
 
   const hits = [];
 
-  // --- Expressions typiques de LLM ---
+  // --- Phrases typical of LLM output ---
   const phrases = AI_PHRASES[lang] ?? AI_PHRASES.en;
   let phraseTotal = 0;
   let phraseDistinct = 0;
@@ -44,7 +44,7 @@ export function markerFeatures(doc, lang = 'en') {
   f['mk.aiPhraseDistinct'] = phraseDistinct;
   f['mk.aiPhraseDistinctRatio'] = phraseDistinct / phrases.length;
 
-  // --- Connecteurs logiques, notamment en debut de phrase ---
+  // --- Logical connectives, especially sentence-initial ---
   const transitions = TRANSITIONS[lang] ?? TRANSITIONS.en;
   let transTotal = 0;
   let transOpeners = 0;
@@ -68,7 +68,7 @@ export function markerFeatures(doc, lang = 'en') {
   }
   f['mk.hedgePer1k'] = per1k(hedgeTotal);
 
-  // --- Subjectivite / experience vecue (signal *humain*) ---
+  // --- Subjectivity / lived experience (a HUMAN signal) ---
   const personal = PERSONAL_MARKERS[lang] ?? PERSONAL_MARKERS.en;
   let personalTotal = 0;
   for (const p of personal) {
@@ -79,7 +79,7 @@ export function markerFeatures(doc, lang = 'en') {
   }
   f['mk.personalPer1k'] = per1k(personalTotal);
 
-  // --- Registre familier / bruit (signal *humain*) ---
+  // --- Informal register / noise (a HUMAN signal) ---
   const noise = HUMAN_NOISE[lang] ?? HUMAN_NOISE.en;
   let noiseTotal = 0;
   for (const w of noise) {
@@ -89,7 +89,7 @@ export function markerFeatures(doc, lang = 'en') {
   }
   f['mk.humanNoisePer1k'] = per1k(noiseTotal);
 
-  // --- Patrons rhetoriques typiques ---
+  // --- Typical rhetorical patterns ---
   const text = doc.text;
   f['mk.notOnlyButAlso'] = countOccurrences(haystack, ' not only ') + countOccurrences(haystack, ' non seulement ');
   f['mk.itIsNotJust'] = countOccurrences(haystack, " it s not just ") + countOccurrences(haystack, " ce n est pas seulement ");
@@ -98,7 +98,7 @@ export function markerFeatures(doc, lang = 'en') {
   f['mk.rhetoricalQuestion'] = doc.sentences.filter((s) => /\?$/.test(s.text) && /^(what|why|how|but what|so what|pourquoi|comment|qu'est|mais)/i.test(s.text)).length;
   f['mk.imperativeOpeners'] = doc.sentences.filter((s) => /^(Remember|Consider|Note|Imagine|Think|Let's|Souvenez|Considerez|Notez|Imaginez|Pensez)\b/i.test(s.text)).length;
 
-  // --- Formatage : listes, titres, gras, emoji de structure ---
+  // --- Formatting: lists, headings, bold, structural emoji ---
   const lines = text.split('\n');
   const bulletLines = lines.filter((l) => /^\s*([-*•·–—]|\d+[.)])\s+/.test(l));
   f['mk.bulletLineRatio'] = lines.length ? bulletLines.length / lines.length : 0;
@@ -110,7 +110,7 @@ export function markerFeatures(doc, lang = 'en') {
   f['mk.colonBeforeList'] = (text.match(/:\s*\n\s*([-*•]|\d+[.)])/g) ?? []).length;
   f['mk.emojiCount'] = (text.match(/\p{Extended_Pictographic}/gu) ?? []).length;
 
-  // --- Meta-signaux d'assistant conversationnel ---
+  // --- Conversational-assistant tells ---
   f['mk.assistantTells'] = countOccurrences(haystack, ' as an ai ')
     + countOccurrences(haystack, ' as a language model ')
     + countOccurrences(haystack, ' en tant qu ia ')
@@ -119,7 +119,7 @@ export function markerFeatures(doc, lang = 'en') {
     + countOccurrences(haystack, ' certainly ')
     + countOccurrences(haystack, ' here s a ');
 
-  // --- Densite moyenne de marqueurs par phrase ---
+  // --- Mean marker density per sentence ---
   const perSentence = doc.sentences.map((s) => {
     const c = ` ${s.text.toLowerCase()} `;
     return phrases.reduce((acc, p) => acc + (c.includes(p.toLowerCase()) ? 1 : 0), 0);
@@ -146,7 +146,7 @@ function countOccurrences(haystack, needle) {
   return count;
 }
 
-/** Regularite des puces : les listes generees ont des items de taille homogene. */
+/** Bullet regularity: generated lists have items of uniform length. */
 function bulletUniformity(bulletLines) {
   if (bulletLines.length < 3) return 0;
   const lengths = bulletLines.map((l) => l.trim().length);

@@ -1,21 +1,22 @@
 /**
- * Detecteur 3 — Uniformite stylometrique.
+ * Detector 3 — Stylometric uniformity.
  *
- * Un auteur humain derive : ses proportions de mots-outils et sa distribution
- * grammaticale changent d'un paragraphe a l'autre (fatigue, changement de
- * sujet, humeur). Un LLM garde une signature quasi constante sur toute la
- * longueur du texte.
+ * A human author drifts: their function-word proportions and grammatical
+ * distribution shift from one paragraph to the next (fatigue, change of topic,
+ * mood). An LLM keeps a near-constant signature across the whole text.
  *
- * Limite : sur un texte court (< 3 paragraphes consequents) la derive n'est pas
- * mesurable ; la confiance chute alors fortement.
+ * Limitation: on a short text (fewer than three substantial paragraphs) drift
+ * cannot be measured, and confidence drops sharply.
  */
 
-import { combine, evidence, lengthConfidence, ramp, get } from './base.js';
+import { combine, evidence, lengthConfidence, ramp, get, num, pct } from './base.js';
+
+const K = 'detectors.stylometry';
 
 export const stylometryDetector = {
   id: 'stylometry',
-  label: 'Uniformite stylometrique',
-  description: 'Stabilite de la signature mots-outils / categories grammaticales le long du texte.',
+  labelKey: `${K}.label`,
+  descriptionKey: `${K}.description`,
 
   run({ features, doc }) {
     const drift = get(features, 'sty.paragraphProfileDrift');
@@ -32,14 +33,14 @@ export const stylometryDetector = {
     const measurable = profiles >= 3;
     const s1 = measurable ? ramp(drift, 0.08, 0.02) : 0.5;
     const s2 = ramp(windowCv, 0.14, 0.035);
-    // Sur-emploi de mots-outils : le texte genere est plus "liant".
+    // Over-use of function words: generated text is more "connective".
     const s3 = ramp(fwRatio, 0.38, 0.53);
     const s4 = ramp(posEntropy, 0.80, 0.94);
     const s5 = ramp(firstPerson, 0.030, 0.002);
     const s6 = ramp(puncCv, 1.25, 0.55);
     const s7 = ramp(openerDiversity, 0.95, 0.60);
-    // Un auteur humain pioche dans un repertoire de mots-outils plus large et
-    // plus inegal ; un modele en concentre l'usage sur un noyau restreint.
+    // A human author draws on a wider, more uneven repertoire of function
+    // words; a model concentrates usage on a narrow core.
     const s8 = ramp(fwEntropy, 5.35, 4.70);
     const s9 = ramp(fwCoverage, 0.26, 0.16);
 
@@ -57,19 +58,19 @@ export const stylometryDetector = {
 
     return {
       id: this.id,
-      label: this.label,
+      labelKey: this.labelKey,
       score,
       confidence: lengthConfidence(doc.wordCount) * (measurable ? 1 : 0.55),
       evidence: [
-        evidence('Derive du profil entre paragraphes', measurable ? drift.toFixed(4) : 'non mesurable', s1,
-          'Un auteur humain derive ; un modele reste stable.'),
-        evidence('Variabilite de la richesse par fenetre', windowCv.toFixed(3), s2),
-        evidence('Pronoms de 1re personne', `${(firstPerson * 100).toFixed(2)} %`, s5,
-          'Leur quasi-absence est frequente dans le texte genere impersonnel.'),
-        evidence('Diversite des debuts de phrase', openerDiversity.toFixed(3), s7),
-        evidence('Regularite de la ponctuation', puncCv.toFixed(3), s6),
-        evidence('Entropie du repertoire de mots-outils', `${fwEntropy.toFixed(2)} bits`, s8),
-        evidence('Couverture du repertoire de mots-outils', `${(fwCoverage * 100).toFixed(1)} %`, s9),
+        measurable
+          ? evidence(`${K}.ev1`, drift.toFixed(4), s1, `${K}.ev1Hint`)
+          : evidence(`${K}.ev1`, { key: `${K}.ev1NotMeasurable` }, s1, `${K}.ev1Hint`),
+        evidence(`${K}.ev2`, num(windowCv), s2),
+        evidence(`${K}.ev3`, pct(firstPerson, 2), s5, `${K}.ev3Hint`),
+        evidence(`${K}.ev4`, num(openerDiversity), s7),
+        evidence(`${K}.ev5`, num(puncCv), s6),
+        evidence(`${K}.ev6`, `${fwEntropy.toFixed(2)} bits`, s8),
+        evidence(`${K}.ev7`, pct(fwCoverage), s9),
       ],
     };
   },

@@ -1,12 +1,13 @@
 /**
- * Point d'entree unique pour l'extraction de texte depuis un fichier.
- * Formats geres : .txt, .md, .csv, .rtf, .html, .docx, .odt, .pdf.
+ * Single entry point for extracting text from a file.
+ * Supported formats: .txt, .md, .csv, .rtf, .html, .docx, .odt, .pdf.
  */
 
 import { LIMITS } from '../config.js';
 import { extractDocx } from './docx.js';
 import { extractPdf } from './pdf.js';
 import { normalizeText, words } from '../core/tokenize.js';
+import { t, formatNumber } from '../i18n/index.js';
 
 export const ACCEPTED_EXTENSIONS = ['.txt', '.md', '.markdown', '.csv', '.rtf', '.html', '.htm', '.docx', '.odt', '.pdf'];
 
@@ -17,18 +18,19 @@ export class FileError extends Error {}
  */
 export async function extractTextFromFile(file, onProgress = () => {}) {
   if (file.size > LIMITS.maxFileBytes) {
-    throw new FileError(
-      `Fichier trop volumineux (${formatBytes(file.size)}). La limite est de ${formatBytes(LIMITS.maxFileBytes)}.`,
-    );
+    throw new FileError(t('errors.fileTooLarge', {
+      size: formatBytes(file.size),
+      max: formatBytes(LIMITS.maxFileBytes),
+    }));
   }
 
   const name = file.name.toLowerCase();
   const extension = name.slice(name.lastIndexOf('.'));
   let text = '';
   let warning;
-  let kind = 'texte';
+  let kind = 'text';
 
-  onProgress('Lecture du fichier', 0.1);
+  onProgress('io.reading', 0.1);
 
   if (extension === '.pdf') {
     kind = 'PDF';
@@ -45,47 +47,50 @@ export async function extractTextFromFile(file, onProgress = () => {}) {
     kind = 'HTML';
     text = stripHtml(await file.text());
   } else if (ACCEPTED_EXTENSIONS.includes(extension)) {
-    kind = extension === '.md' || extension === '.markdown' ? 'Markdown' : 'texte';
+    kind = extension === '.md' || extension === '.markdown' ? 'Markdown' : 'text';
     text = await file.text();
   } else {
-    throw new FileError(
-      `Format non supporte (${extension || 'inconnu'}). Formats acceptes : ${ACCEPTED_EXTENSIONS.join(', ')}.`,
-    );
+    throw new FileError(t('errors.unsupportedFormat', {
+      ext: extension || '?',
+      list: ACCEPTED_EXTENSIONS.join(', '),
+    }));
   }
 
-  onProgress('Nettoyage', 0.95);
+  onProgress('io.cleaning', 0.95);
   text = normalizeText(text);
 
   if (!text || text.length < 20) {
-    throw new FileError('Aucun texte exploitable n\'a pu etre extrait de ce fichier.');
+    throw new FileError(t('errors.noText'));
   }
 
   const wordCount = words(text).length;
   if (wordCount > LIMITS.maxWords) {
-    throw new FileError(
-      `Le document contient ${wordCount.toLocaleString('fr-FR')} mots, au-dela de la limite de ${LIMITS.maxWords.toLocaleString('fr-FR')} mots. Decoupez-le en plusieurs parties.`,
-    );
+    throw new FileError(t('errors.tooManyWords', {
+      count: formatNumber(wordCount),
+      max: formatNumber(LIMITS.maxWords),
+    }));
   }
 
   return { text, wordCount, warning, kind };
 }
 
-/** Verifie une saisie directe (collage) contre les memes limites. */
+/** Validate direct input (pasting) against the same limits. */
 export function validateText(text) {
   const clean = normalizeText(text);
   const wordCount = words(clean).length;
   if (wordCount > LIMITS.maxWords) {
-    throw new FileError(
-      `Le texte contient ${wordCount.toLocaleString('fr-FR')} mots, au-dela de la limite de ${LIMITS.maxWords.toLocaleString('fr-FR')} mots.`,
-    );
+    throw new FileError(t('errors.tooManyWordsPaste', {
+      count: formatNumber(wordCount),
+      max: formatNumber(LIMITS.maxWords),
+    }));
   }
   return { text: clean, wordCount };
 }
 
-/** Nettoyage RTF : groupes de controle, tables de polices, echappements. */
+/** RTF cleanup: control groups, font tables, escape sequences. */
 function stripRtf(raw) {
   let text = raw;
-  // Supprime les groupes purement techniques (polices, couleurs, metadonnees).
+  // Remove purely technical groups (fonts, colours, metadata).
   text = text.replace(/\{\\\*?\\(fonttbl|colortbl|stylesheet|info|pict|generator)[\s\S]*?\}/g, ' ');
   text = text
     .replace(/\\par[d]?\b/g, '\n')
@@ -120,7 +125,7 @@ function stripHtml(raw) {
 }
 
 export function formatBytes(bytes) {
-  if (bytes < 1024) return `${bytes} o`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} Ko`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} Mo`;
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} kB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

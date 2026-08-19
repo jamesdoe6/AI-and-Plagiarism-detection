@@ -1,10 +1,11 @@
 /**
- * Tiroir de reglages : fournisseurs, cles, seuils, sources locales.
- * Les valeurs sont persistees dans localStorage via config.js.
+ * Settings drawer: providers, keys, thresholds, local sources.
+ * Values are persisted to localStorage through config.js.
  */
 
-import { $, el } from '../util/dom.js';
+import { $, el, clear } from '../util/dom.js';
 import { SEARCH_PROVIDERS, AI_PROVIDERS, DEFAULT_SETTINGS, loadSettings, saveSettings } from '../config.js';
+import { t, onLanguageChange } from '../i18n/index.js';
 
 export function initSettings(onChange) {
   let settings = loadSettings();
@@ -12,14 +13,26 @@ export function initSettings(onChange) {
   const searchSelect = $('#set-search-provider');
   const aiSelect = $('#set-ai-provider');
 
-  for (const provider of Object.values(SEARCH_PROVIDERS)) {
-    searchSelect.append(el('option', { value: provider.id, text: provider.label }));
-  }
-  for (const provider of Object.values(AI_PROVIDERS)) {
-    aiSelect.append(el('option', { value: provider.id, text: provider.label }));
+  /** Provider option labels are translated, so they are rebuilt on switch. */
+  function buildOptions() {
+    const searchValue = searchSelect.value || settings.searchProvider;
+    const aiValue = aiSelect.value || settings.aiProvider;
+
+    clear(searchSelect);
+    for (const provider of Object.values(SEARCH_PROVIDERS)) {
+      searchSelect.append(el('option', { value: provider.id, text: t(provider.labelKey) }));
+    }
+    clear(aiSelect);
+    for (const provider of Object.values(AI_PROVIDERS)) {
+      aiSelect.append(el('option', { value: provider.id, text: t(provider.labelKey) }));
+    }
+
+    searchSelect.value = searchValue;
+    aiSelect.value = aiValue;
   }
 
   function fill() {
+    buildOptions();
     searchSelect.value = settings.searchProvider;
     $('#set-search-key').value = settings.searchApiKey;
     $('#set-search-extra').value = settings.searchExtra;
@@ -32,7 +45,6 @@ export function initSettings(onChange) {
     $('#set-ai-model').value = settings.aiModel;
     $('#set-local-sources').value = settings.localSources;
     $('#set-threshold').value = settings.aiThreshold;
-    $('#threshold-value').textContent = settings.aiThreshold;
     syncVisibility();
   }
 
@@ -41,14 +53,16 @@ export function initSettings(onChange) {
     $('#field-search-key').hidden = !search?.needsKey && searchSelect.value !== 'custom';
     const extraNeeded = Boolean(search?.needsExtra);
     $('#field-search-extra').hidden = !extraNeeded;
-    if (extraNeeded) $('#label-search-extra').textContent = search.extraLabel;
+    if (extraNeeded) $('#label-search-extra').textContent = t(search.extraLabelKey);
 
     const ai = AI_PROVIDERS[aiSelect.value];
     $('#field-ai-key').hidden = !ai?.needsKey;
     $('#field-ai-extra').hidden = !ai?.needsExtra;
     $('#field-ai-model').hidden = aiSelect.value === 'none';
-    if (ai?.needsExtra) $('#label-ai-extra').textContent = ai.extraLabel;
-    if (ai?.defaultModel && !$('#set-ai-model').value) $('#set-ai-model').placeholder = ai.defaultModel;
+    if (ai?.needsExtra) $('#label-ai-extra').textContent = t(ai.extraLabelKey);
+    if (ai?.defaultModel) $('#set-ai-model').placeholder = ai.defaultModel;
+
+    $('#threshold-label').textContent = t('settings.threshold', { value: $('#set-threshold').value });
   }
 
   function read() {
@@ -71,24 +85,26 @@ export function initSettings(onChange) {
 
   searchSelect.addEventListener('change', syncVisibility);
   aiSelect.addEventListener('change', syncVisibility);
-  $('#set-threshold').addEventListener('input', (event) => {
-    $('#threshold-value').textContent = event.target.value;
-  });
+  $('#set-threshold').addEventListener('input', syncVisibility);
 
   $('#save-settings').addEventListener('click', () => {
     settings = read();
     const ok = saveSettings(settings);
-    onChange(settings, ok
-      ? 'Reglages enregistres.'
-      : 'Reglages appliques, mais impossible de les enregistrer (stockage local indisponible).');
+    onChange(settings, ok ? 'settings.saved' : 'settings.savedNoStorage');
     close();
   });
 
   $('#reset-settings').addEventListener('click', () => {
-    settings = { ...DEFAULT_SETTINGS, theme: settings.theme, expertMode: settings.expertMode };
+    settings = { ...DEFAULT_SETTINGS, expertMode: settings.expertMode };
     saveSettings(settings);
     fill();
-    onChange(settings, 'Reglages reinitialises.');
+    onChange(settings, 'settings.resetDone');
+  });
+
+  // Rebuild the translated option lists when the language changes.
+  onLanguageChange(() => {
+    buildOptions();
+    syncVisibility();
   });
 
   const drawer = $('#drawer');
@@ -101,13 +117,13 @@ export function initSettings(onChange) {
       drawer.classList.add('is-open');
       backdrop.classList.add('is-open');
     });
-    $('#set-search-provider').focus();
+    searchSelect.focus();
   }
 
   function close() {
     drawer.classList.remove('is-open');
     backdrop.classList.remove('is-open');
-    setTimeout(() => { drawer.hidden = true; }, 320);
+    setTimeout(() => { drawer.hidden = true; }, 450);
   }
 
   $('#settings-btn').addEventListener('click', open);

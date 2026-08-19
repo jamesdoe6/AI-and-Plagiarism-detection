@@ -1,17 +1,19 @@
 /**
- * Extraction de texte depuis un PDF.
+ * Text extraction from a PDF.
  *
- * Deux strategies, dans cet ordre :
- *   1. pdf.js charge a la demande depuis un CDN (extraction fiable, gere les
- *      encodages et la mise en page) ;
- *   2. si le CDN est injoignable (hors ligne, reseau filtre), un extracteur
- *      interne minimal lit les flux de texte non compresses et ceux compresses
- *      en Flate via DecompressionStream.
+ * Two strategies, in this order:
+ *   1. pdf.js loaded on demand from a CDN (reliable extraction, handles
+ *      encodings and layout);
+ *   2. if the CDN is unreachable (offline, filtered network), a minimal
+ *      internal extractor reads uncompressed text streams and Flate-compressed
+ *      ones via DecompressionStream.
  *
- * La strategie 2 est volontairement presentee comme degradee : elle rate les
- * PDF scannes (images) et certains encodages exotiques. Un message clair le
- * signale plutot que de rendre un texte silencieusement tronque.
+ * Strategy 2 is deliberately presented as degraded: it misses scanned PDFs
+ * (images) and some exotic encodings. A clear message says so, rather than
+ * silently returning truncated text.
  */
+
+import { t } from '../i18n/index.js';
 
 const PDFJS_URL = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.min.mjs';
 const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.worker.min.mjs';
@@ -36,30 +38,28 @@ export async function extractPdf(file, onProgress = () => {}) {
     const doc = await pdfjs.getDocument({ data: new Uint8Array(buffer) }).promise;
     const pages = [];
     for (let i = 1; i <= doc.numPages; i += 1) {
-      onProgress(`Page ${i}/${doc.numPages}`, i / doc.numPages);
+      onProgress(`${i}/${doc.numPages}`, i / doc.numPages);
       const page = await doc.getPage(i);
       const content = await page.getTextContent();
       pages.push(joinTextItems(content.items));
     }
     const text = pages.join('\n\n').trim();
     if (text.length > 40) return { text, degraded: false, pages: doc.numPages };
-    throw new Error('Aucun texte extrait (PDF probablement scanne).');
+    throw new Error(t('errors.pdfNoText'));
   } catch (err) {
     const fallback = await extractPdfFallback(buffer);
     if (fallback.length > 40) {
       return {
         text: fallback,
         degraded: true,
-        warning: `Extraction de secours utilisee (${err.message}). Le texte peut etre incomplet ou mal ordonne — verifiez-le avant d'exploiter les scores.`,
+        warning: t('errors.pdfDegraded', { reason: err.message }),
       };
     }
-    throw new Error(
-      'Impossible d\'extraire le texte de ce PDF. S\'il s\'agit d\'un document scanne, il faut d\'abord le passer par un OCR.',
-    );
+    throw new Error(t('errors.pdfFailed'));
   }
 }
 
-/** Reconstitue les sauts de ligne a partir de la position verticale des items. */
+/** Rebuild line breaks from the vertical position of text items. */
 function joinTextItems(items) {
   let text = '';
   let lastY = null;
@@ -74,7 +74,7 @@ function joinTextItems(items) {
   return text.replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-/** Extracteur de secours : lit les operateurs de texte des flux du PDF. */
+/** Fallback extractor: read text operators from the PDF's streams. */
 async function extractPdfFallback(buffer) {
   const bytes = new Uint8Array(buffer);
   const latin = new TextDecoder('latin1').decode(bytes);
@@ -85,7 +85,7 @@ async function extractPdfFallback(buffer) {
   while ((match = streamRe.exec(latin)) !== null) {
     const raw = match[1];
     let content = raw;
-    // Flux compresse : on tente une decompression zlib.
+    // Compressed stream: attempt a zlib inflate.
     if (/^\x78[\x01\x9c\xda\x5e]/.test(raw)) {
       content = await inflate(raw) ?? '';
     }
@@ -108,7 +108,7 @@ async function inflate(latinString) {
   }
 }
 
-/** Recupere le contenu des operateurs Tj / TJ / ' / ". */
+/** Recover the content of the Tj / TJ / ' / " operators. */
 function extractTextOperators(content) {
   let text = '';
   const re = /\((?:\\.|[^\\()])*\)|\[(?:[^\][]|\\.)*\]\s*TJ|TD|Td|T\*|ET/g;

@@ -1,9 +1,9 @@
 /**
- * Indices de lisibilite (anglais et francais).
+ * Readability indices (English and French).
  *
- * Pris isolement ils ne disent rien sur l'origine d'un texte ; en revanche
- * leur *stabilite d'un paragraphe a l'autre* est discriminante : un LLM
- * maintient un niveau de lisibilite quasi constant, un humain varie.
+ * Taken alone they say nothing about a text's origin; their STABILITY FROM ONE
+ * PARAGRAPH TO THE NEXT, however, is discriminative: an LLM holds a near-constant
+ * readability level, a human varies.
  */
 
 import { mean, stdev, cv } from '../core/stats.js';
@@ -37,7 +37,7 @@ export function readabilityFeatures(doc, lang = 'en') {
   f['read.lix'] = wordsPerSentence + 100 * (tokens.filter((w) => w.length > 6).length / tokens.length);
   f['read.rix'] = tokens.filter((w) => w.length > 6).length / sentCount;
 
-  // Variabilite de la lisibilite d'un paragraphe a l'autre : signal cle.
+  // Readability variability from paragraph to paragraph: the key signal here.
   const perParagraph = doc.paragraphs
     .map((p) => {
       const pw = words(p);

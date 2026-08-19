@@ -1,4 +1,4 @@
-/** Fonctions statistiques utilisees par les extracteurs de metriques. */
+/** Statistical helpers used by the metric extractors. */
 
 export const sum = (xs) => xs.reduce((a, b) => a + b, 0);
 
@@ -12,7 +12,7 @@ export function variance(xs) {
 
 export const stdev = (xs) => Math.sqrt(variance(xs));
 
-/** Coefficient de variation : dispersion relative, insensible a l'echelle. */
+/** Coefficient of variation: relative dispersion, scale-invariant. */
 export function cv(xs) {
   const m = mean(xs);
   return m === 0 ? 0 : stdev(xs) / m;
@@ -34,7 +34,7 @@ export function quantile(xs, q) {
   return s[base + 1] !== undefined ? s[base] + rest * (s[base + 1] - s[base]) : s[base];
 }
 
-/** Asymetrie (skewness) — un texte IA a souvent une distribution plus symetrique. */
+/** Skewness — AI text often shows a more symmetric distribution. */
 export function skewness(xs) {
   const n = xs.length;
   if (n < 3) return 0;
@@ -44,7 +44,7 @@ export function skewness(xs) {
   return (n / ((n - 1) * (n - 2))) * sum(xs.map((x) => ((x - m) / sd) ** 3));
 }
 
-/** Aplatissement (kurtosis excedentaire). */
+/** Excess kurtosis. */
 export function kurtosis(xs) {
   const n = xs.length;
   if (n < 4) return 0;
@@ -55,7 +55,7 @@ export function kurtosis(xs) {
   return g2;
 }
 
-/** Entropie de Shannon (base 2) d'une distribution de comptes. */
+/** Shannon entropy (base 2) of a distribution of counts. */
 export function entropy(counts) {
   const values = Array.isArray(counts) ? counts : Array.from(counts.values());
   const total = sum(values);
@@ -69,7 +69,7 @@ export function entropy(counts) {
   return h;
 }
 
-/** Entropie normalisee dans [0,1] par le maximum theorique. */
+/** Entropy normalised to [0,1] by its theoretical maximum. */
 export function normalizedEntropy(counts) {
   const values = Array.isArray(counts) ? counts : Array.from(counts.values());
   const k = values.filter((v) => v > 0).length;
@@ -77,7 +77,7 @@ export function normalizedEntropy(counts) {
   return entropy(values) / Math.log2(k);
 }
 
-/** Indice de Gini d'une distribution (0 = uniforme, 1 = concentre). */
+/** Gini index of a distribution (0 = uniform, 1 = concentrated). */
 export function gini(values) {
   const xs = [...values].filter((v) => v >= 0).sort((a, b) => a - b);
   const n = xs.length;
@@ -95,7 +95,7 @@ export function counter(items) {
   return map;
 }
 
-/** Similarite cosinus entre deux vecteurs creux (Map). */
+/** Cosine similarity between two sparse vectors (Map). */
 export function cosineSparse(a, b) {
   let dot = 0;
   let na = 0;
@@ -119,7 +119,7 @@ export function jaccard(setA, setB) {
   return inter / (setA.size + setB.size - inter);
 }
 
-/** Containment : part de A retrouvee dans B (asymetrique, utile pour le plagiat). */
+/** Containment: share of A found within B (asymmetric, useful for plagiarism). */
 export function containment(setA, setB) {
   if (!setA.size) return 0;
   let inter = 0;
@@ -127,21 +127,21 @@ export function containment(setA, setB) {
   return inter / setA.size;
 }
 
-/** Borne une valeur dans [min, max]. */
+/** Clamp a value into [min, max]. */
 export const clamp = (x, min = 0, max = 1) => Math.min(max, Math.max(min, x));
 
-/** Sigmoide logistique. */
+/** Logistic sigmoid. */
 export const sigmoid = (x) => 1 / (1 + Math.exp(-x));
 
 /**
- * Convertit une metrique brute en score 0..1 par rampe *douce*.
+ * Convert a raw metric into a 0..1 score through a SOFT ramp.
  *
- * `lo` est la valeur qui tire vers 0, `hi` celle qui tire vers 1 (lo peut etre
- * superieur a hi pour inverser le sens). On passe par une logistique plutot que
- * par une rampe lineaire tronquee : une metrique legerement hors bornes ne doit
- * pas produire un vote categorique a 0 % ou 100 %. Les extremes valent ~0,06 et
- * ~0,94, ce qui laisse toujours place au doute — indispensable quand le score
- * final peut etre lu comme une accusation.
+ * `lo` is the value pulling towards 0, `hi` the one pulling towards 1 (lo may be
+ * greater than hi to invert the direction). We use a logistic rather than a
+ * truncated linear ramp: a metric slightly out of bounds must not produce a
+ * categorical 0 % or 100 % vote. The extremes sit at ~0.06 and ~0.94, always
+ * leaving room for doubt — essential when the final score can be read as an
+ * accusation.
  */
 const RAMP_STEEPNESS = 5.2;
 
@@ -152,14 +152,14 @@ export function ramp(value, lo, hi) {
   return sigmoid((t - 0.5) * RAMP_STEEPNESS);
 }
 
-/** Variante dure, quand une metrique doit vraiment saturer. */
+/** Hard variant, for the rare metric that genuinely must saturate. */
 export function hardRamp(value, lo, hi) {
   if (!Number.isFinite(value)) return 0.5;
   if (lo === hi) return 0.5;
   return clamp((value - lo) / (hi - lo));
 }
 
-/** Distance de Levenshtein bornee, sur des tableaux (mots) ou des chaines. */
+/** Bounded Levenshtein distance, over arrays (words) or strings. */
 export function levenshtein(a, b, maxLen = 400) {
   const s = typeof a === 'string' ? a.slice(0, maxLen) : a.slice(0, maxLen);
   const t = typeof b === 'string' ? b.slice(0, maxLen) : b.slice(0, maxLen);
@@ -180,7 +180,7 @@ export function levenshtein(a, b, maxLen = 400) {
   return prev[m];
 }
 
-/** Ratio de similarite normalise a partir de Levenshtein. */
+/** Normalised similarity ratio derived from Levenshtein. */
 export function levenshteinRatio(a, b) {
   const maxLen = Math.max(a.length, b.length);
   if (!maxLen) return 1;
@@ -188,8 +188,8 @@ export function levenshteinRatio(a, b) {
 }
 
 /**
- * Plus longue sous-sequence commune (longueur) entre deux tableaux de mots.
- * Utilise pour reperer les reprises quasi litterales malgre des insertions.
+ * Longest common subsequence (length) between two word arrays.
+ * Used to spot near-verbatim reuse despite insertions.
  */
 export function lcsLength(a, b, cap = 600) {
   const s = a.slice(0, cap);

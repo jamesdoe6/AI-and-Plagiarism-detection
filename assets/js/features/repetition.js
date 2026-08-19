@@ -1,14 +1,14 @@
 /**
- * Metriques de repetition et de redondance.
+ * Repetition and redundancy metrics.
  *
- * Deux phenomenes opposes sont mesures :
- *  - la repetition *litterale* (n-grammes repris), plutot signe de texte
- *    genere long ou de copier-coller ;
- *  - la repetition *structurelle* (memes debuts, memes patrons de phrase),
- *    signature forte des LLM.
+ * Two opposing phenomena are measured:
+ *  - VERBATIM repetition (reused n-grams), more a sign of long generated text or
+ *    copy-paste;
+ *  - STRUCTURAL repetition (same openings, same sentence patterns), a strong
+ *    LLM signature.
  *
- * Le ratio de compression gzip sert de mesure globale de redondance : il est
- * calcule via l'API native CompressionStream, sans dependance externe.
+ * The gzip compression ratio serves as a global redundancy measure, computed via
+ * the native CompressionStream API with no external dependency.
  */
 
 import { counter, mean, stdev, entropy } from '../core/stats.js';
@@ -29,7 +29,7 @@ export function repetitionFeatures(doc) {
     f[`rep.uniqueRatio${n}`] = freq.size / grams.length;
   }
 
-  // Repetition de contenu (hors mots-outils) : mots de plus de 5 lettres.
+  // Content repetition (excluding function words): words longer than 5 letters.
   const content = tokens.filter((w) => w.length > 5);
   const contentFreq = counter(content);
   f['rep.contentRepeatRate'] = content.length
@@ -38,7 +38,7 @@ export function repetitionFeatures(doc) {
     ? Math.max(0, ...contentFreq.values()) / content.length : 0;
   f['rep.contentEntropy'] = entropy(contentFreq);
 
-  // Repetition entre phrases : chevauchement lexical moyen de phrases voisines.
+  // Cross-sentence repetition: mean lexical overlap of neighbouring sentences.
   const sentSets = doc.sentences.map((s) => new Set(words(s.text.toLowerCase()).filter((w) => w.length > 3)));
   const overlaps = [];
   for (let i = 1; i < sentSets.length; i += 1) {
@@ -52,10 +52,10 @@ export function repetitionFeatures(doc) {
   f['rep.adjacentSentenceOverlap'] = mean(overlaps);
   f['rep.adjacentSentenceOverlapSd'] = stdev(overlaps);
 
-  // Chevauchement global toutes paires (echantillonne pour rester lineaire).
+  // Global all-pairs overlap (sampled to stay linear).
   f['rep.globalSentenceOverlap'] = sampledPairwiseOverlap(sentSets);
 
-  // Patrons de phrase : squelette mot-outil / longueur.
+  // Sentence patterns: function-word / length skeleton.
   const skeletons = doc.sentences.map((s) => sentenceSkeleton(s.text));
   const skeletonFreq = counter(skeletons);
   f['rep.skeletonDiversity'] = skeletons.length ? skeletonFreq.size / skeletons.length : 0;
@@ -64,7 +64,7 @@ export function repetitionFeatures(doc) {
   return { features: f };
 }
 
-/** Squelette : 4 premiers mots reduits a leur categorie grossiere. */
+/** Skeleton: the first 4 words reduced to a coarse category. */
 function sentenceSkeleton(text) {
   return words(text)
     .slice(0, 4)
@@ -102,17 +102,16 @@ function sampledPairwiseOverlap(sets, maxPairs = 4000) {
 }
 
 /**
- * Profil de compression.
+ * Compression profile.
  *
- * Le taux de compression brut depend beaucoup de la longueur et de la langue.
- * On le compare donc a une *ligne de base nulle* : le meme texte avec les mots
- * melanges aleatoirement. Le melange detruit la redondance de sequence tout en
- * conservant le vocabulaire et la longueur. Le rapport entre les deux
- * (structuralGain) isole la redondance reellement structurelle, presque
- * independamment de la taille du texte.
+ * The raw compression ratio depends heavily on length and language. We therefore
+ * compare it against a NULL BASELINE: the same text with its words randomly
+ * shuffled. Shuffling destroys sequence redundancy while preserving vocabulary
+ * and length. The ratio between the two (structuralGain) isolates genuinely
+ * structural redundancy, almost independently of text size.
  *
- * Utilise l'API native CompressionStream ; renvoie null si indisponible
- * (l'ensemble ignore alors ce signal plutot que de deviner).
+ * Uses the native CompressionStream API; returns null when unavailable (the
+ * ensemble then ignores this signal rather than guessing).
  */
 export async function compressionProfile(text) {
   try {
@@ -128,8 +127,8 @@ export async function compressionProfile(text) {
     return {
       ratio,
       baseline,
-      // < 1 : le texte est plus compressible que sa version melangee, donc
-      // porteur de redondance de sequence.
+      // < 1: the text compresses better than its shuffled version, meaning it
+      // carries sequence redundancy.
       structuralGain: baseline > 0 ? ratio / baseline : null,
     };
   } catch {
@@ -137,7 +136,7 @@ export async function compressionProfile(text) {
   }
 }
 
-/** Compatibilite : ancien point d'entree ne renvoyant que le taux brut. */
+/** Compatibility: legacy entry point returning only the raw ratio. */
 export async function compressionRatio(text) {
   const profile = await compressionProfile(text);
   return profile ? profile.ratio : null;
@@ -151,7 +150,7 @@ async function gzipRatio(text) {
   return compressed.byteLength / bytes.length;
 }
 
-/** Melange deterministe (graine fixe) : deux analyses du meme texte concordent. */
+/** Deterministic shuffle (fixed seed): two analyses of the same text agree. */
 function shuffle(items) {
   const out = [...items];
   let seed = 20260419;

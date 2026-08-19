@@ -1,11 +1,9 @@
 /**
- * Metriques de ponctuation et de typographie.
+ * Punctuation and typography metrics.
  *
- * Signal souvent sous-estime : les LLM utilisent des guillemets typographiques,
- * des tirets cadratins et des points-virgules avec une regularite que peu
- * d'humains reproduisent au clavier. A l'inverse, doubles espaces, points de
- * suspension bricoles en "..." et guillemets droits trahissent une saisie
- * humaine.
+ * An often underrated signal: LLMs use curly quotes, em dashes and semicolons
+ * with a regularity few humans reproduce at a keyboard. Conversely, double
+ * spaces, ellipses improvised as "..." and straight quotes betray human typing.
  */
 
 import { mean, stdev, entropy, counter } from '../core/stats.js';
@@ -69,7 +67,7 @@ export function punctuationFeatures(doc) {
   f['punc.diversity'] = [...counts.values()].filter((c) => c > 0).length / counts.size;
   f['punc.entropy'] = entropy([...counts.values()]);
 
-  // Typographie "propre" vs saisie humaine.
+  // "Clean" typography vs human typing.
   const curly = counts.get('curlyApostrophe') + counts.get('curlyQuoteOpen') + counts.get('curlyQuoteClose');
   const straight = counts.get('straightApostrophe') + counts.get('straightQuote');
   f['punc.curlyRatio'] = curly + straight ? curly / (curly + straight) : 0;
@@ -79,20 +77,20 @@ export function punctuationFeatures(doc) {
   f['punc.semicolonSentenceRatio'] = doc.sentences.length
     ? doc.sentences.filter((s) => s.text.includes(';')).length / doc.sentences.length : 0;
 
-  // Anomalies de saisie humaine.
+  // Human typing anomalies.
   f['punc.doubleSpace'] = ((text.match(/ {2}/g) ?? []).length / wordsCount) * 1000;
   f['punc.spaceBeforePunct'] = ((text.match(/ [,.;:!?]/g) ?? []).length / wordsCount) * 1000;
   f['punc.missingSpaceAfterPunct'] = ((text.match(/[,.;:][A-Za-zÀ-ÿ]/g) ?? []).length / wordsCount) * 1000;
   f['punc.repeatedPunct'] = ((text.match(/([!?])\1+/g) ?? []).length / wordsCount) * 1000;
   f['punc.trailingSpaceLines'] = (text.split('\n').filter((l) => / $/.test(l)).length) / Math.max(1, text.split('\n').length);
 
-  // Regularite de la ponctuation d'une phrase a l'autre.
+  // Punctuation regularity from one sentence to the next.
   const perSentence = doc.sentences.map((s) => (s.text.match(/[,;:()—–]/g) ?? []).length);
   f['punc.perSentenceMean'] = mean(perSentence);
   f['punc.perSentenceSd'] = stdev(perSentence);
   f['punc.perSentenceCv'] = mean(perSentence) ? stdev(perSentence) / mean(perSentence) : 0;
 
-  // Distribution des caracteres (alphabet + chiffres) : 40 metriques.
+  // Character distribution (alphabet + digits): 40 metrics.
   const lower = text.toLowerCase();
   const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
   const letterCounts = counter([...lower].filter((c) => alphabet.includes(c)));

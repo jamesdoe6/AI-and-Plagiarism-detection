@@ -1,11 +1,10 @@
 /**
- * Listes de mots-outils (function words).
+ * Function-word lists.
  *
- * La frequence de ces mots constitue la signature stylometrique classique
- * (Mosteller & Wallace) : elle est quasi inconsciente chez un auteur humain et
- * tres reguliere chez un LLM. Chaque mot de ces listes devient une metrique
- * independante du vecteur de caracteristiques, ce qui represente a lui seul
- * plusieurs centaines de dimensions.
+ * The frequency of these words is the classic stylometric signature (Mosteller &
+ * Wallace): near-unconscious in a human author, very regular in an LLM. Every
+ * word in these lists becomes an independent metric in the feature vector,
+ * which by itself accounts for several hundred dimensions.
  */
 
 export const FUNCTION_WORDS_EN = [
@@ -59,9 +58,9 @@ export const FUNCTION_WORDS_FR = [
 ];
 
 /**
- * Marqueurs de "parties du discours" approximes sans modele lourd.
- * Chaque categorie sert de proxy POS : la distribution relative de ces
- * categories est une metrique stylometrique tres discriminante.
+ * Part-of-speech markers approximated without a heavy model.
+ * Each category acts as a POS proxy: the relative distribution of these
+ * categories is a highly discriminative stylometric metric.
  */
 export const POS_PROXY = {
   en: {

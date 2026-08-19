@@ -1,16 +1,17 @@
 /**
- * Extraction de texte depuis un fichier .docx — sans dependance externe.
+ * Text extraction from a .docx file — with no external dependency.
  *
- * Un .docx est une archive ZIP contenant du XML. On lit le repertoire central
- * du ZIP, on decompresse `word/document.xml` avec l'API native
- * DecompressionStream('deflate-raw'), puis on convertit les balises de
- * paragraphe et de saut de ligne en texte.
+ * A .docx is a ZIP archive containing XML. We read the ZIP central directory,
+ * inflate `word/document.xml` with the native DecompressionStream('deflate-raw')
+ * API, then convert paragraph and line-break tags into text.
  *
- * Meme mecanisme pour .odt (`content.xml`), ce qui vient gratuitement.
+ * The same mechanism handles .odt (`content.xml`), which comes for free.
  */
 
 const SIGNATURE_EOCD = 0x06054b50;
 const SIGNATURE_CENTRAL = 0x02014b50;
+
+import { t } from '../i18n/index.js';
 
 export async function extractDocx(file) {
   const buffer = await file.arrayBuffer();
@@ -20,20 +21,20 @@ export async function extractDocx(file) {
     ?? entries.find((e) => e.name === 'content.xml');
 
   if (!documentEntry) {
-    throw new Error('Archive invalide : ni word/document.xml (DOCX) ni content.xml (ODT) trouve.');
+    throw new Error(t('errors.docxInvalid'));
   }
 
   const xml = await inflateEntry(documentEntry, buffer);
   return xmlToText(xml);
 }
 
-/** Lit le repertoire central du ZIP (robuste au commentaire de fin d'archive). */
+/** Read the ZIP central directory (tolerant of a trailing archive comment). */
 function readZipEntries(view, buffer) {
   let eocd = -1;
   for (let i = view.byteLength - 22; i >= 0 && i > view.byteLength - 66000; i -= 1) {
     if (view.getUint32(i, true) === SIGNATURE_EOCD) { eocd = i; break; }
   }
-  if (eocd === -1) throw new Error('Fichier illisible : ce n\'est pas une archive ZIP valide.');
+  if (eocd === -1) throw new Error(t('errors.zipInvalid'));
 
   const count = view.getUint16(eocd + 10, true);
   let offset = view.getUint32(eocd + 16, true);
@@ -64,33 +65,33 @@ async function inflateEntry(entry, buffer) {
   const data = new Uint8Array(buffer, dataStart, entry.compressedSize);
 
   if (entry.method === 0) return new TextDecoder().decode(data);
-  if (entry.method !== 8) throw new Error(`Methode de compression non supportee (${entry.method}).`);
+  if (entry.method !== 8) throw new Error(t('errors.zipMethod', { method: entry.method }));
   if (typeof DecompressionStream === 'undefined') {
-    throw new Error('Ce navigateur ne sait pas decompresser les .docx. Convertissez le fichier en .txt.');
+    throw new Error(t('errors.noDecompression'));
   }
 
   const stream = new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
   return new Response(stream).text();
 }
 
-/** Convertit le XML WordprocessingML / ODF en texte brut structure. */
+/** Convert WordprocessingML / ODF XML into structured plain text. */
 function xmlToText(xml) {
   return xml
-    // Sauts de ligne et tabulations explicites.
+    // Explicit line breaks and tabs.
     .replace(/<w:br\s*\/?>/g, '\n')
     .replace(/<w:tab\s*\/?>/g, '\t')
     .replace(/<text:line-break\s*\/?>/g, '\n')
     .replace(/<text:tab\s*\/?>/g, '\t')
-    // Fin de paragraphe.
+    // Paragraph end.
     .replace(/<\/w:p>/g, '\n\n')
     .replace(/<\/text:p>/g, '\n\n')
     .replace(/<\/text:h>/g, '\n\n')
-    // Cellules de tableau.
+    // Table cells.
     .replace(/<\/w:tc>/g, '\t')
     .replace(/<\/table:table-cell>/g, '\t')
-    // Suppression de toutes les autres balises.
+    // Strip every remaining tag.
     .replace(/<[^>]+>/g, '')
-    // Entites XML.
+    // XML entities.
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')

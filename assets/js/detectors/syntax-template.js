@@ -1,21 +1,23 @@
 /**
- * Detecteur 7 — Patrons syntaxiques recurrents.
+ * Detector 7 — Recurring syntactic templates.
  *
- * Au-dela des mots, les modeles reutilisent des *moules* de phrase : meme
- * squelette d'ouverture, meme densite de subordination, meme alternance
- * proposition principale / incise. On mesure la diversite de ces squelettes et
- * la repetition des n-grammes de mots-outils (independants du sujet traite).
+ * Beyond words, models reuse sentence MOULDS: the same opening skeleton, the
+ * same subordination density, the same main-clause / parenthetical alternation.
+ * We measure the diversity of those skeletons and the repetition of
+ * function-word n-grams, which are independent of the topic being written about.
  */
 
-import { combine, evidence, lengthConfidence, ramp, get } from './base.js';
+import { combine, evidence, lengthConfidence, ramp, get, num } from './base.js';
 import { counter, entropy } from '../core/stats.js';
 import { words, ngrams } from '../core/tokenize.js';
 import { FUNCTION_WORDS } from '../data/function-words.js';
 
+const K = 'detectors.syntaxTemplate';
+
 export const syntaxTemplateDetector = {
   id: 'syntaxTemplate',
-  label: 'Patrons syntaxiques',
-  description: 'Reutilisation de moules de phrase et de sequences de mots-outils.',
+  labelKey: `${K}.label`,
+  descriptionKey: `${K}.description`,
 
   run({ features, doc, language }) {
     const skeletonDiversity = get(features, 'rep.skeletonDiversity', 1);
@@ -25,7 +27,7 @@ export const syntaxTemplateDetector = {
     const subord = get(features, 'syn.subordinationRate');
     const multiClause = get(features, 'syn.multiClauseRatio');
 
-    // Sequences de mots-outils : signature syntaxique independante du sujet.
+    // Function-word sequences: a syntactic signature independent of subject.
     const fw = new Set(FUNCTION_WORDS[language.lang] ?? FUNCTION_WORDS.en);
     const skeletonTokens = words(doc.text.toLowerCase()).map((w) => (fw.has(w) ? w : '#'));
     const grams = ngrams(skeletonTokens, 4);
@@ -53,15 +55,17 @@ export const syntaxTemplateDetector = {
 
     return {
       id: this.id,
-      label: this.label,
+      labelKey: this.labelKey,
       score,
       confidence: lengthConfidence(doc.wordCount) * (doc.sentenceCount >= 10 ? 1 : 0.55),
       evidence: [
-        evidence('Diversite des squelettes de phrase', skeletonDiversity.toFixed(3), s1),
-        evidence('Diversite des sequences de mots-outils', fwDiversity.toFixed(3), s5,
-          `Entropie ${fwEntropy.toFixed(2)} bits sur ${gramFreq.size} sequences distinctes.`),
-        evidence('Entropie des ouvertures de phrase', `${openerEntropy.toFixed(2)} bits`, s3),
-        evidence('Regularite du nombre de virgules', commaSd.toFixed(2), s4),
+        evidence(`${K}.ev1`, num(skeletonDiversity), s1),
+        evidence(`${K}.ev2`, num(fwDiversity), s5, `${K}.ev2Hint`, {
+          entropy: fwEntropy.toFixed(2),
+          count: gramFreq.size,
+        }),
+        evidence(`${K}.ev3`, `${openerEntropy.toFixed(2)} bits`, s3),
+        evidence(`${K}.ev4`, commaSd.toFixed(2), s4),
       ],
     };
   },

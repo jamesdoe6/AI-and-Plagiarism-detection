@@ -1,133 +1,146 @@
-# Métriques calculées
+# Computed metrics
 
-Le vecteur de caractéristiques contient **entre 730 et 950 dimensions** selon la
-langue détectée et la longueur du texte. Le compte exact est affiché dans
-l'interface (badge « N métriques ») et dans le rapport.
+The feature vector holds **between 730 and 950 dimensions** depending on the detected language and
+the text length. The exact count is shown in the interface (the "N metrics" badge) and in the report.
 
-Le mode expert affiche l'intégralité des valeurs, famille par famille.
+Expert mode displays every value, family by family.
 
 ---
 
-## 1. Lexique et richesse — `lex.*` (≈ 57 métriques)
+## 1. Lexis and richness — `lex.*` (≈ 57 metrics)
 
-| Métrique | Description |
+| Metric | Description |
 |---|---|
-| `lex.ttr`, `rootTtr`, `corrTtr`, `logTtr` | Type/Token Ratio et ses variantes normalisées (Guiraud, Carroll, Herdan) |
-| `lex.mattr`, `mattr50`, `msttr` | Diversité lexicale sur fenêtre glissante — robuste à la longueur, contrairement au TTR brut |
-| `lex.hapaxRatio`, `disLegomenaRatio` | Part des mots employés une ou deux fois |
-| `lex.honoreR`, `brunetW`, `yuleK`, `simpsonD`, `maas` | Indices classiques de richesse lexicale |
-| `lex.wordLen*` | Moyenne, écart-type, CV, asymétrie, aplatissement, médiane, P90, IQR des longueurs de mots |
-| `lex.wordLenBin1..18` | Histogramme complet des longueurs de mots |
-| `lex.freqEntropy`, `freqGini`, `zipfSlope` | Forme de la distribution de fréquence du vocabulaire |
-| `lex.capitalizedRatio`, `allCapsRatio`, `digitTokenRatio`… | Morphologie de surface |
+| `lex.ttr`, `rootTtr`, `corrTtr`, `logTtr` | Type/Token Ratio and its normalised variants (Guiraud, Carroll, Herdan) |
+| `lex.mattr`, `mattr50`, `msttr` | Lexical diversity over a moving window — robust to length, unlike raw TTR |
+| `lex.hapaxRatio`, `disLegomenaRatio` | Share of words used once or twice |
+| `lex.honoreR`, `brunetW`, `yuleK`, `simpsonD`, `maas` | Classic lexical richness indices |
+| `lex.wordLen*` | Mean, standard deviation, CV, skewness, kurtosis, median, P90, IQR of word lengths |
+| `lex.wordLenBin1..18` | Full histogram of word lengths |
+| `lex.freqEntropy`, `freqGini`, `zipfSlope` | Shape of the vocabulary frequency distribution |
+| `lex.capitalizedRatio`, `allCapsRatio`, `digitTokenRatio`… | Surface morphology |
 
-## 2. Syntaxe et burstiness — `syn.*` (≈ 60 métriques)
+## 2. Syntax and burstiness — `syn.*` (≈ 60 metrics)
 
-Famille la plus discriminante de l'ensemble.
+The most discriminative family in the ensemble.
 
-| Métrique | Description |
+| Metric | Description |
 |---|---|
-| `syn.sentLenCv` | **Coefficient de variation des longueurs de phrases.** Signal central : en dessous de 0,30 le rythme est anormalement stable |
-| `syn.burstiness` | Coefficient de Goh & Barabási `(σ−μ)/(σ+μ)` ; proche de −1 = régularité mécanique |
-| `syn.adjacentDeltaMean/Norm` | Écart de longueur entre phrases consécutives |
-| `syn.sentBin0..12` | Histogramme des longueurs de phrases |
-| `syn.shortSentRatio`, `fragmentRatio`, `sentLenMin` | Présence de phrases très brèves, rare dans le texte généré |
-| `syn.openerDiversity`, `openerEntropy`, `opener2Diversity` | Variété des débuts de phrase |
-| `syn.commasPerSentence*`, `multiClauseRatio`, `subordinationRate` | Complexité intra-phrase |
-| `syn.paraLenCv`, `paraSentCv`, `paraUniformity` | Régularité des paragraphes |
+| `syn.sentLenCv` | **Coefficient of variation of sentence lengths.** Central signal: below 0.30 the rhythm is abnormally stable |
+| `syn.burstiness` | Goh & Barabási coefficient `(σ−μ)/(σ+μ)`; close to −1 means mechanical regularity |
+| `syn.adjacentDeltaMean/Norm` | Length gap between consecutive sentences |
+| `syn.sentBin0..12` | Histogram of sentence lengths |
+| `syn.shortSentRatio`, `fragmentRatio`, `sentLenMin` | Presence of very short sentences, rare in generated text |
+| `syn.openerDiversity`, `openerEntropy`, `opener2Diversity` | Variety of sentence openings |
+| `syn.commasPerSentence*`, `multiClauseRatio`, `subordinationRate` | Intra-sentence complexity |
+| `syn.paraLenCv`, `paraSentCv`, `paraUniformity` | Paragraph regularity |
 
-## 3. Ponctuation et typographie — `punc.*` / `char.*` (≈ 93 métriques)
+## 3. Punctuation and typography — `punc.*` / `char.*` (≈ 93 metrics)
 
-Une fréquence par signe (37 signes), plus :
+One frequency per mark (37 marks), plus:
 
-- `punc.curlyRatio` — apostrophes et guillemets typographiques vs droits ;
-- `punc.emDashPer1k`, `emDashSentenceRatio` — usage du tiret cadratin ;
-- `punc.doubleSpace`, `spaceBeforePunct`, `repeatedPunct` — **anomalies de saisie humaine** ;
-- `punc.perSentenceCv` — régularité de la ponctuation d'une phrase à l'autre ;
-- `char.a` … `char.z`, `char.0` … `char.9` — distribution complète des caractères ;
+- `punc.curlyRatio` — typographic vs straight apostrophes and quotes;
+- `punc.emDashPer1k`, `emDashSentenceRatio` — em-dash usage;
+- `punc.doubleSpace`, `spaceBeforePunct`, `repeatedPunct` — **human typing anomalies**;
+- `punc.perSentenceCv` — punctuation regularity from one sentence to the next;
+- `char.a` … `char.z`, `char.0` … `char.9` — full character distribution;
 - `char.entropy`, `accentRatio`, `uppercaseRatio`, `emojiRatio`.
 
-## 4. Information et perplexité — `ent.*` (≈ 40 métriques)
+## 4. Information and perplexity — `ent.*` (≈ 40 metrics)
 
-> ⚠️ Ce n'est **pas** une perplexité de modèle de langue réelle. C'est une
-> approximation calculable côté client, sans appel réseau ni modèle lourd.
+> ⚠️ This is **not** a real language-model perplexity. It is an approximation computable
+> client-side, with no network call and no heavy model.
 
-| Métrique | Description |
+| Metric | Description |
 |---|---|
-| `ent.sentenceSurprisalCv`, `sentenceSurprisalSd` | **Variabilité de la densité informationnelle entre phrases.** Signal dominant du détecteur de prévisibilité |
-| `ent.ivSurprisalMean/Cv` | Surprise restreinte au vocabulaire connu — neutralise l'effet de registre |
-| `ent.oovRate` | Part de mots hors des tables de fréquence embarquées |
-| `ent.surprisalMean/Cv/Delta*` | Surprise zipfienne globale et sa dispersion |
-| `ent.wordCondEntropy2/3`, `selfPredictability` | Auto-prédictibilité n-gramme (modèle appris sur le texte lui-même) |
-| `ent.charEntropy1..4`, `charEntropyNorm1..4` | Entropie de caractères à plusieurs ordres |
-| `ent.ngramDiversity2..5` | Diversité des n-grammes de mots |
+| `ent.sentenceSurprisalCv`, `sentenceSurprisalSd` | **Variability of information density between sentences.** Dominant signal of the predictability detector |
+| `ent.ivSurprisalMean/Cv` | Surprisal restricted to known vocabulary — neutralises the register effect |
+| `ent.oovRate` | Share of words outside the bundled frequency tables |
+| `ent.surprisalMean/Cv/Delta*` | Global Zipfian surprisal and its dispersion |
+| `ent.wordCondEntropy2/3`, `selfPredictability` | N-gram self-predictability (model learned from the text itself) |
+| `ent.charEntropy1..4`, `charEntropyNorm1..4` | Character entropy at several orders |
+| `ent.ngramDiversity2..5` | Diversity of word n-grams |
 
-**Méthode.** La surprise d'un mot est reconstruite depuis son rang dans des
-listes de fréquence embarquées (1 854 mots EN, 1 117 mots FR) via la loi de
-Zipf : `p(rang) ≈ 1 / (rang^1,07 × H)`. Les mots hors liste reçoivent une
-surprise plancher dérivée de leur longueur.
+**Method.** A word's surprisal is reconstructed from its rank in bundled frequency lists
+(1,854 English words, 1,117 French) via Zipf's law: `p(rank) ≈ 1 / (rank^1.07 × H)`. Out-of-list
+words receive a floor surprisal derived from their length.
 
-## 5. Répétition et redondance — `rep.*` (≈ 30 métriques)
+**Why in-vocabulary surprisal exists.** Raw surprisal conflates "predictable text" with "learned
+text", because a word absent from the table scores high purely for being long. Separating known
+words (where the choice between frequent and less-frequent words is genuinely measured) from the
+out-of-vocabulary rate largely neutralises the register effect.
 
-- `rep.repeat2..8`, `maxRepeat*`, `uniqueRatio*` — reprise de n-grammes ;
-- `rep.adjacentSentenceOverlap`, `globalSentenceOverlap` — recouvrement lexical entre phrases ;
-- `rep.skeletonDiversity` — diversité des squelettes de phrase ;
+## 5. Repetition and redundancy — `rep.*` (≈ 30 metrics)
+
+- `rep.repeat2..8`, `maxRepeat*`, `uniqueRatio*` — n-gram reuse;
+- `rep.adjacentSentenceOverlap`, `globalSentenceOverlap` — lexical overlap between sentences;
+- `rep.skeletonDiversity` — diversity of sentence skeletons;
 - `rep.gzipRatio`, `gzipShuffledRatio`, **`gzipStructuralGain`**.
 
-**Le gain structurel** est le rapport entre la compression du texte et celle du
-même texte aux mots mélangés (graine fixe, donc reproductible). Cette ligne de
-base nulle neutralise l'effet du vocabulaire et de la longueur, et isole la
-redondance réellement structurelle.
+**The structural gain** is the ratio between the text's compression and that of the same text with
+its words shuffled (fixed seed, therefore reproducible). This null baseline neutralises the effect
+of vocabulary and length, and isolates genuinely structural redundancy.
 
-## 6. Lisibilité — `read.*` (≈ 17 métriques)
+## 6. Readability — `read.*` (≈ 17 metrics)
 
-Flesch, Flesch adapté au français (Kandel-Moles), Flesch-Kincaid, Gunning Fog,
-SMOG, ARI, Coleman-Liau, LIX, RIX.
+Flesch, Flesch adapted to French (Kandel-Moles), Flesch-Kincaid, Gunning Fog, SMOG, ARI,
+Coleman-Liau, LIX, RIX.
 
-Pris isolément ces indices ne disent **rien** sur l'origine d'un texte. C'est
-leur **stabilité d'un paragraphe à l'autre** (`read.paragraphFleschCv`) qui est
-exploitée.
+Taken alone these indices say **nothing** about a text's origin. What is exploited is their
+**stability from one paragraph to the next** (`read.paragraphFleschCv`).
 
-## 7. Stylométrie — `sty.*` / `fw.*` / `pos.*` (≈ 240 à 380 métriques)
+## 7. Stylometry — `sty.*` / `fw.*` / `pos.*` (≈ 240 to 380 metrics)
 
-- **`fw.<langue>.<mot>`** — une métrique par mot-outil (207 en anglais, 213 en
-  français). C'est la signature stylométrique classique de Mosteller & Wallace :
-  quasi inconsciente chez un auteur humain, très régulière chez un LLM.
-- `pos.*` — approximation des catégories grammaticales par listes fermées et
-  suffixes (déterminants, pronoms, prépositions, conjonctions, auxiliaires,
-  adverbes, adjectifs, noms, verbes).
-- `sty.paragraphProfileDrift` — **dérive du profil stylométrique entre
-  paragraphes consécutifs.** Un humain dérive ; un modèle reste stable.
+- **`fw.<lang>.<word>`** — one metric per function word (207 in English, 213 in French). This is
+  the classic Mosteller & Wallace stylometric signature: near-unconscious in a human author, very
+  regular in an LLM.
+- `pos.*` — part-of-speech approximation via closed lists and suffixes (determiners, pronouns,
+  prepositions, conjunctions, auxiliaries, adverbs, adjectives, nouns, verbs).
+- `sty.paragraphProfileDrift` — **drift of the stylometric profile between consecutive paragraphs.**
+  A human drifts; a model stays stable.
 - `sty.firstPerson`, `secondPerson`, `thirdPerson`, `personRatio`.
-- `sty.functionWordEntropy`, `functionWordCoverage` — étendue du répertoire.
-- `sty.windowTtrCv` — variabilité de la richesse par fenêtre de 200 mots.
+- `sty.functionWordEntropy`, `functionWordCoverage` — breadth of the repertoire.
+- `sty.windowTtrCv` — richness variability per 200-word window.
 
-## 8. Marqueurs lexicaux — `mk.*` (≈ 250 métriques)
+## 8. Lexical markers — `mk.*` (≈ 250 metrics)
 
-Une métrique par expression des lexiques embarqués :
+One metric per entry in the bundled lexicons:
 
-| Lexique | Taille | Rôle |
+| Lexicon | Size | Role |
 |---|---|---|
-| Expressions LLM (`AI_PHRASES`) | 118 EN / 116 FR | Tirent vers l'IA |
-| Connecteurs (`TRANSITIONS`) | 26 par langue | Tirent vers l'IA, surtout en tête de phrase |
-| Hedging (`HEDGES`) | ~20 par langue | Tirent faiblement vers l'IA |
-| Subjectivité (`PERSONAL_MARKERS`) | ~21 par langue | **Tirent vers l'humain** |
-| Registre familier (`HUMAN_NOISE`) | ~18 par langue | **Tirent vers l'humain** |
+| LLM phrases (`AI_PHRASES`) | 118 EN / 116 FR | Pull towards AI |
+| Connectives (`TRANSITIONS`) | 26 per language | Pull towards AI, especially sentence-initial |
+| Hedging (`HEDGES`) | ~20 per language | Pull weakly towards AI |
+| Subjectivity (`PERSONAL_MARKERS`) | ~21 per language | **Pull towards human** |
+| Informal register (`HUMAN_NOISE`) | ~18 per language | **Pull towards human** |
 
-Plus des patrons rhétoriques (`mk.notOnlyButAlso`, `mk.tricolon`,
-`mk.rhetoricalQuestion`) et des marqueurs de formatage (`mk.bulletLineRatio`,
-`mk.bulletUniformity`, `mk.headingCount`, `mk.boldCount`).
+Plus rhetorical patterns (`mk.notOnlyButAlso`, `mk.tricolon`, `mk.rhetoricalQuestion`) and
+formatting markers (`mk.bulletLineRatio`, `mk.bulletUniformity`, `mk.headingCount`, `mk.boldCount`).
 
-> Ces marqueurs sont **les plus faciles à contourner** et les plus générateurs
-> de faux positifs sur les textes académiques et institutionnels. Le détecteur
-> correspondant a un score borné (10 %–92 %) et une confiance plafonnée à 75 %.
+> These markers are **the easiest to defeat** and the biggest producers of false positives on
+> academic and institutional writing. The corresponding detector has a bounded score (10 %–92 %) and
+> a confidence capped at 75 %.
 
 ---
 
-## Ajouter une métrique
+## A note on calibration
 
-1. L'ajouter dans le module `assets/js/features/` de la famille concernée, avec
-   un préfixe cohérent (`lex.`, `syn.`, …).
-2. Elle apparaît automatiquement dans le vecteur, le mode expert et l'export JSON.
-3. Pour qu'elle **pèse** sur un score, la consommer dans un détecteur de
-   `assets/js/detectors/` — la simple présence dans le vecteur n'influence rien.
+Metrics that separate the reference samples are not automatically good signals. A scan of all 768
+metrics showed that most of the strongest separators (word length, readability, adjective density)
+were tracking **register**, not **origin** — calibrating on them would have produced a formality
+detector, which is exactly the documented false-positive failure mode.
+
+The detectors therefore lean on the theory-backed signals only: rhythm regularity, variability of
+information density, stylometric drift. The register-correlated metrics remain in the vector, are
+visible in expert mode, and feed the **formality index** — which warns the user rather than moving
+the score.
+
+---
+
+## Adding a metric
+
+1. Add it to the relevant `assets/js/features/` module, with a consistent prefix
+   (`lex.`, `syn.`, …).
+2. It appears automatically in the vector, in expert mode and in the JSON export.
+3. For it to **weigh** on a score, consume it in a `assets/js/detectors/` module — mere presence in
+   the vector influences nothing.

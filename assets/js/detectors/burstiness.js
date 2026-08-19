@@ -1,21 +1,22 @@
 /**
- * Detecteur 2 — Burstiness structurelle.
+ * Detector 2 — Structural burstiness.
  *
- * L'ecriture humaine alterne de facon irreguliere phrases longues et courtes ;
- * les modeles de langue convergent vers une longueur cible stable. On mesure
- * la dispersion des longueurs de phrases, la forme de leur distribution et la
- * regularite des paragraphes.
+ * Human writing alternates long and short sentences irregularly; language
+ * models converge on a stable target length. We measure the dispersion of
+ * sentence lengths, the shape of their distribution and paragraph regularity.
  *
- * Limite : un texte edite, normalise ou ecrit sous contrainte de style (presse,
- * documentation technique) peut etre tres regulier sans etre genere.
+ * Limitation: edited, normalised, or house-style-constrained text (journalism,
+ * technical documentation) can be very regular without being generated.
  */
 
-import { combine, evidence, lengthConfidence, ramp, get } from './base.js';
+import { combine, evidence, lengthConfidence, ramp, get, num, pct } from './base.js';
+
+const K = 'detectors.burstiness';
 
 export const burstinessDetector = {
   id: 'burstiness',
-  label: 'Burstiness (rythme des phrases)',
-  description: 'Dispersion des longueurs de phrases et regularite des paragraphes.',
+  labelKey: `${K}.label`,
+  descriptionKey: `${K}.description`,
 
   run({ features, doc }) {
     const cvSent = get(features, 'syn.sentLenCv');
@@ -49,18 +50,15 @@ export const burstinessDetector = {
 
     return {
       id: this.id,
-      label: this.label,
+      labelKey: this.labelKey,
       score,
       confidence: lengthConfidence(doc.wordCount) * (doc.sentenceCount >= 8 ? 1 : 0.5),
       evidence: [
-        evidence('Coefficient de variation des phrases', cvSent.toFixed(3), s1,
-          'En dessous de 0,30 le rythme est anormalement stable.'),
-        evidence('Indice de burstiness', burst.toFixed(3), s2,
-          'Proche de -1 : regularite quasi mecanique.'),
-        evidence('Ecart interquartile des longueurs', `${iqr.toFixed(1)} mots`, s6),
-        evidence('Phrases courtes (<= 8 mots)', `${(shortRatio * 100).toFixed(1)} %`, s5,
-          'Les humains inserent souvent des phrases tres breves.'),
-        evidence('Stabilite de la lisibilite entre paragraphes', readCv.toFixed(3), s8),
+        evidence(`${K}.ev1`, num(cvSent), s1, `${K}.ev1Hint`),
+        evidence(`${K}.ev2`, num(burst), s2, `${K}.ev2Hint`),
+        evidence(`${K}.ev3`, `${iqr.toFixed(1)}`, s6),
+        evidence(`${K}.ev4`, pct(shortRatio), s5, `${K}.ev4Hint`),
+        evidence(`${K}.ev5`, num(readCv), s8),
       ],
     };
   },

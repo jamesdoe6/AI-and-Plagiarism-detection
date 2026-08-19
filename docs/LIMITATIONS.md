@@ -1,128 +1,115 @@
-# Limites connues
+# Known limitations
 
-Ce document n'est pas une clause de style. Il décrit ce que l'outil **ne peut
-pas** faire, parce qu'un score affiché sans ses limites devient une pièce à
-charge.
+This document is not boilerplate. It describes what the tool **cannot** do, because a score
+displayed without its limits becomes an item of evidence.
 
 ---
 
-## 1. Ce que mesure réellement le score IA
+## 1. What the AI score actually measures
 
-Le score n'est pas une probabilité au sens statistique du terme. C'est une
-**agrégation d'indices de régularité** : à quel point le texte est prévisible,
-rythmé de façon uniforme, stylistiquement stable et pauvre en marques de
-subjectivité.
+The score is not a probability in the statistical sense. It is an **aggregation of regularity
+indicators**: how predictable the text is, how uniformly it is paced, how stylistically stable, and
+how sparse in markers of subjectivity.
 
-Un texte peut présenter toutes ces propriétés sans avoir été généré :
+A text can show all of these without having been generated:
 
-- une rédaction scolaire suivant un plan imposé ;
-- un document administratif ou juridique au style volontairement neutre ;
-- un texte écrit par un locuteur non natif, qui puise dans un répertoire
-  lexical et syntaxique plus restreint ;
-- une traduction, surtout automatique puis relue ;
-- une documentation technique normalisée.
+- an essay written to an imposed plan;
+- an administrative or legal document in a deliberately neutral style;
+- writing by a non-native speaker, drawing on a narrower lexical and syntactic repertoire;
+- a translation, especially machine-translated and then edited;
+- standardised technical documentation.
 
-**C'est la principale source de faux positifs, et elle est concentrée sur des
-populations identifiables.** C'est le reproche méthodologique central adressé
-aux détecteurs commerciaux.
+**This is the primary source of false positives, and it is concentrated on identifiable groups.**
+It is the central methodological criticism levelled at commercial detectors.
 
-## 2. Ce que le score IA ne détecte pas
+To make the risk visible rather than hide it, the interface computes a **formality index** and
+displays an explicit warning when a high score coincides with a highly formal register.
 
-- **Le texte généré puis édité.** Quelques minutes de réécriture humaine
-  suffisent à réintroduire de la variabilité de rythme et à casser les marqueurs
-  lexicaux.
-- **Le texte paraphrasé** par un outil de reformulation.
-- **Le texte mixte** humain + IA : le score moyenne les deux régimes et atterrit
-  dans la zone 40–60 %, la moins informative.
-- **Les modèles récents** produisant volontairement du texte moins uniforme
-  (température élevée, consignes de style, imitation d'un auteur).
+## 2. What the AI score does not catch
 
-Un score bas ne prouve donc rien.
+- **Generated text that was then edited.** A few minutes of human rewriting is enough to
+  reintroduce rhythmic variability and break the lexical markers.
+- **Paraphrased text** run through a rewriting tool.
+- **Mixed text**, human + AI: the score averages the two regimes and lands in the 40–60 % band,
+  the least informative one.
+- **Recent models** deliberately producing less uniform text (high temperature, style instructions,
+  author imitation).
 
-## 3. Précision réaliste
+A low score therefore proves nothing.
 
-L'état de l'art publié situe les meilleurs détecteurs autour de **80–90 % de
-précision sur du texte brut non retouché**, avec une chute marquée dès que le
-texte est édité, paraphrasé, traduit ou mixte.
+## 3. Realistic accuracy
 
-Cet outil n'utilise **aucun modèle entraîné en local** : ses détecteurs
-heuristiques sont, par construction, en dessous de ce plafond. Ils sont conçus
-pour être **explicables et prudents**, pas pour maximiser un taux de détection.
+Published work puts the best detectors at around **80–90 % accuracy on raw, unedited text**, with a
+marked drop as soon as the text is edited, paraphrased, translated or mixed.
 
-Le détecteur distant optionnel (Hugging Face) permet de brancher un vrai
-classifieur entraîné, mais les modèles publics disponibles ont été entraînés sur
-des générations anciennes et se dégradent fortement sur les modèles récents.
+This tool uses **no locally trained model**: its heuristic detectors are, by construction, below
+that ceiling. They are built to be **explainable and cautious**, not to maximise a detection rate.
 
-## 4. Zone d'incertitude assumée
+The optional remote detector (Hugging Face) lets you plug in a genuinely trained classifier, but the
+available public models were trained on older generations and degrade sharply on recent ones.
 
-| Score | Lecture |
+## 4. Acknowledged uncertainty band
+
+| Score | Reading |
 |---|---|
-| < 30 % | Signature plutôt humaine |
-| 30–55 % | Indéterminé |
-| 55–70 % | Signaux mixtes |
-| 70–85 % | Probablement généré ou fortement assisté |
-| ≥ 85 % | Signature fortement compatible avec une IA |
+| < 30 % | Rather human signature |
+| 30–55 % | Undetermined |
+| 55–70 % | Mixed signals |
+| 70–85 % | Likely generated or heavily assisted |
+| ≥ 85 % | Signature strongly consistent with AI |
 
-Le seuil d'alerte par défaut est à **85 %**, réglable entre 55 et 95 %.
-L'abaisser multiplie mécaniquement les faux positifs.
+The default alert threshold is **85 %**, adjustable between 55 and 95 %. Lowering it mechanically
+multiplies false positives. Changing it moves the entire scale, so the displayed bands always match
+the threshold actually in force.
 
-**La plage 55–85 % est celle où les détecteurs se trompent le plus.** L'interface
-le signale explicitement quand le score y tombe.
+**The 55–85 % range is where detectors go wrong most often.** The interface says so explicitly when
+a score lands there.
 
-## 5. Garde-fous codés en dur
+## 5. Hard-coded safeguards
 
-- Textes de moins de **40 mots** : non notés du tout.
-- En dessous de **300 mots** : confiance plafonnée, avertissement affiché.
-- **Désaccord entre détecteurs** : le score est ramené vers 50 % proportionnellement
-  à la dispersion. L'incertitude est affichée, pas masquée.
-- **Langue non supportée** (ni français ni anglais) : ressources linguistiques
-  inapplicables, score contracté vers 50 % et confiance réduite de 30 %.
-- **Rampes douces** : aucune métrique isolée ne peut produire un vote à 0 % ou
-  100 %. Les extrêmes valent ~6 % et ~94 %.
-- Un détecteur qui manque de matière (compression sous 600 mots) **s'abstient**
-  au lieu de voter au hasard.
+- Texts under **40 words**: not scored at all.
+- Below **300 words**: confidence capped, warning displayed.
+- **Detector disagreement**: the score is pulled back towards 50 % in proportion to the spread.
+  Uncertainty is displayed, not hidden.
+- **Unsupported language** (neither French nor English): linguistic resources do not apply, the
+  score is contracted towards 50 % and confidence reduced by 30 %.
+- **Soft ramps**: no single metric can produce a 0 % or 100 % vote. The extremes are ~6 % and ~94 %.
+- A detector short of material (compression below 600 words) **abstains** rather than voting at random.
 
-## 6. Limites du score de plagiat
+## 6. Limitations of the plagiarism score
 
-- Il mesure un **recouvrement lexical**, pas une faute. Une citation
-  correctement attribuée compte comme un recouvrement : seule une lecture
-  humaine fait la différence.
-- La couverture ne dépasse jamais 100 % : les intervalles sont fusionnés et
-  pondérés par la similarité, pour qu'un passage trouvé sur cinq sites ne
-  compte qu'une fois.
-- **La recherche ne couvre que le web indexé** par le moteur configuré, et
-  seulement dans la limite du budget de requêtes (24 par défaut). L'absence de
-  correspondance ne signifie pas l'absence de source.
-- Les contenus derrière un paywall, les bases académiques fermées, les travaux
-  d'étudiants non publiés et les documents PDF non indexés sont **hors de portée**.
-- Sans service d'extraction de page, la comparaison se limite aux extraits de
-  quelques lignes renvoyés par le moteur : les scores sont alors moins fiables,
-  et l'interface l'indique (« comparaison sur extrait de recherche seulement »).
-- La **paraphrase** est partiellement détectée (containment sur 3-grammes et
-  plus longue sous-séquence commune sur les mots de contenu), mais une
-  reformulation profonde échappe à toute approche lexicale.
+- It measures **lexical overlap**, not misconduct. A properly attributed quotation counts as
+  overlap: only a human reading can tell the difference.
+- Coverage never exceeds 100 %: intervals are merged and weighted by similarity, so a passage found
+  on five sites counts once.
+- **Search only covers the web indexed** by the configured engine, and only within the query budget
+  (24 by default). The absence of a match does not mean the absence of a source.
+- Paywalled content, closed academic databases, unpublished student work and unindexed PDFs are
+  **out of reach**.
+- Without a page-extraction service, comparison is limited to the few lines the engine returns:
+  scores are then less reliable, and the interface says so ("compared against search snippet only").
+- **Paraphrase** is partially caught (3-gram containment and longest common subsequence over content
+  words), but a deep rewrite escapes any lexical approach.
 
-## 7. Vie privée
+## 7. Privacy
 
-- L'analyse IA locale et la comparaison aux sources locales **ne sortent pas du
-  navigateur**.
-- La recherche web envoie **des extraits de 11 mots** de votre texte au moteur
-  configuré.
-- Le service d'extraction de page reçoit **les URL candidates**, pas votre texte.
-- Le détecteur IA distant, s'il est activé, reçoit **le texte complet** (tronqué
-  à 12 000 caractères). Il est désactivé par défaut et l'interface le rappelle.
-- Les clés d'API sont stockées dans le `localStorage` du navigateur.
+- Local AI analysis and local-source comparison **never leave the browser**.
+- Web search sends **11-word extracts** of your text to the configured engine.
+- The page-extraction service receives **candidate URLs**, not your text.
+- The remote AI detector, if enabled, receives **the full text** (truncated to 12,000 characters).
+  It is off by default and the interface says so.
+- API keys are stored in the browser's `localStorage`.
 
-## 8. Usage responsable
+## 8. Responsible use
 
-**Aucune décision concernant une personne — note, sanction, recrutement,
-publication — ne doit reposer sur ces scores.**
+**No decision about a person — a grade, a sanction, a hire, a publication — should rest on these
+scores.**
 
-Ils servent à *orienter* une vérification humaine :
+They exist to *direct* a human review:
 
-1. lire le texte ;
-2. regarder les indices affichés, pas seulement le pourcentage ;
-3. vérifier les sources signalées une par une, en suivant les liens ;
-4. parler à la personne concernée avant toute conclusion.
+1. read the text;
+2. look at the indicators displayed, not just the percentage;
+3. check the flagged sources one by one, following the links;
+4. talk to the person concerned before drawing any conclusion.
 
-Un outil de détection ne remplace pas ce travail. Il ne fait que le cadrer.
+A detection tool does not replace that work. It only frames it.

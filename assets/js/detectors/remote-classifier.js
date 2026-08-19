@@ -1,29 +1,31 @@
 /**
- * Detecteur 10 (optionnel) — Classifieur distant (Hugging Face Inference).
+ * Detector 10 (optional) — Remote classifier (Hugging Face Inference).
  *
- * Permet de brancher un vrai classifieur entraine "humain vs machine"
+ * Lets you plug in a genuinely trained "human vs machine" classifier
  * (roberta-base-openai-detector, Hello-SimpleAI/chatgpt-detector-roberta,
- * desklib/ai-text-detector, etc.). Le texte est decoupe en morceaux compatibles
- * avec la fenetre du modele (~512 tokens) puis les scores sont agreges.
+ * desklib/ai-text-detector, and so on). The text is split into chunks that fit
+ * the model window (~512 tokens), then the scores are aggregated.
  *
- * Limite : ces modeles publics sont entraines sur des generations anciennes ;
- * leur performance chute sur les modeles recents et sur le texte paraphrase.
- * Ils restent utiles comme *voix supplementaire* de l'ensemble, pas comme
- * verdict.
+ * Limitation: these public models were trained on older generations; their
+ * performance drops on recent models and on paraphrased text. They remain
+ * useful as an ADDITIONAL VOICE in the ensemble, not as a verdict.
  */
 
 import { fetchWithTimeout, withRetry, permanent, pool } from '../util/async.js';
 import { AI_PROVIDERS } from '../config.js';
 import { clamp } from './base.js';
 import { mean, stdev } from '../core/stats.js';
+import { t } from '../i18n/index.js';
+
+const K = 'detectors.remoteClassifier';
 
 const CHUNK_CHARS = 1400;
 const MAX_CHUNKS = 8;
 
 export const remoteClassifierDetector = {
   id: 'remoteClassifier',
-  label: 'Classifieur distant',
-  description: 'Modele de classification humain / IA heberge (Hugging Face Inference API).',
+  labelKey: `${K}.label`,
+  descriptionKey: `${K}.description`,
   remote: true,
 
   isEnabled(settings) {
@@ -36,7 +38,7 @@ export const remoteClassifierDetector = {
     const url = `${provider.endpoint}${model}`;
 
     const chunks = splitChunks(doc.text, CHUNK_CHARS).slice(0, MAX_CHUNKS);
-    if (!chunks.length) throw new Error('Texte trop court pour le classifieur.');
+    if (!chunks.length) throw new Error(t(`${K}.errorShort`));
 
     const results = await pool(chunks, async (chunk) => {
       return withRetry(async () => {
@@ -49,7 +51,7 @@ export const remoteClassifierDetector = {
           body: JSON.stringify({ inputs: chunk, options: { wait_for_model: true } }),
         }, 30000);
 
-        if (response.status === 503) throw new Error('Modele en cours de chargement');
+        if (response.status === 503) throw new Error(t(`${K}.loading`));
         if (!response.ok) {
           const body = await response.text().catch(() => '');
           const message = `HTTP ${response.status} — ${body.slice(0, 160)}`;
@@ -60,7 +62,7 @@ export const remoteClassifierDetector = {
       }, {
         retries: 2,
         baseDelay: 2000,
-        onRetry: (err, attempt, delay) => onLog?.(`Classifieur : tentative ${attempt} dans ${delay} ms (${err.message})`),
+        onRetry: (err, attempt, delay) => onLog?.(t(`${K}.retry`, { attempt, delay, error: err.message })),
       });
     }, 2);
 
@@ -68,31 +70,33 @@ export const remoteClassifierDetector = {
       .map((r) => extractAiScore(r))
       .filter((v) => Number.isFinite(v));
 
-    if (!scores.length) throw new Error('Aucun score exploitable renvoye par le modele.');
+    if (!scores.length) throw new Error(t(`${K}.errorNoScore`));
 
     const avg = mean(scores);
     const dispersion = stdev(scores);
 
     return {
       id: this.id,
-      label: `${this.label} (${model})`,
+      labelKey: this.labelKey,
+      labelSuffix: model,
       score: clamp(avg),
-      // Une forte dispersion entre segments = texte mixte ou modele indecis.
+      // High dispersion across segments = mixed text, or an undecided model.
       confidence: clamp(0.75 - dispersion, 0.25, 0.85) * (scores.length >= 3 ? 1 : 0.7),
       evidence: [
         {
-          label: 'Score moyen du classifieur',
+          labelKey: `${K}.ev1`,
           value: `${(avg * 100).toFixed(1)} %`,
           score: clamp(avg),
           direction: avg > 0.6 ? 'ai' : avg < 0.4 ? 'human' : 'neutral',
-          hint: `${scores.length} segments analyses.`,
+          hintKey: `${K}.ev1Hint`,
+          hintParams: { count: scores.length },
         },
         {
-          label: 'Dispersion entre segments',
+          labelKey: `${K}.ev2`,
           value: dispersion.toFixed(3),
           score: 0.5,
           direction: 'neutral',
-          hint: dispersion > 0.25 ? 'Segments heterogenes : texte possiblement mixte humain + IA.' : 'Segments homogenes.',
+          hintKey: dispersion > 0.25 ? `${K}.ev2HintHigh` : `${K}.ev2HintLow`,
         },
       ],
       segmentScores: scores,
@@ -100,7 +104,7 @@ export const remoteClassifierDetector = {
   },
 };
 
-/** Decoupe sur les frontieres de phrase pour ne pas casser le contexte. */
+/** Split on sentence boundaries so the context is not broken mid-thought. */
 function splitChunks(text, size) {
   const parts = text.split(/(?<=[.!?…])\s+/);
   const chunks = [];
@@ -117,8 +121,8 @@ function splitChunks(text, size) {
 }
 
 /**
- * Normalise les formats de sortie heterogenes des modeles HF.
- * Les libelles varient : LABEL_0/LABEL_1, Fake/Real, AI/Human, machine/human.
+ * Normalise the heterogeneous output formats of HF models.
+ * Labels vary: LABEL_0/LABEL_1, Fake/Real, AI/Human, machine/human.
  */
 function extractAiScore(result) {
   const flat = Array.isArray(result?.[0]) ? result[0] : result;

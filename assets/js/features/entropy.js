@@ -1,17 +1,17 @@
 /**
- * Metriques d'information : entropie, surprise (proxy de perplexite),
- * previsibilite locale.
+ * Information metrics: entropy, surprisal (perplexity proxy), local
+ * predictability.
  *
- * Le proxy de perplexite combine trois signaux independants :
- *  1. la surprise moyenne selon une loi de Zipf sur des listes de frequence
- *     embarquees (pas d'appel reseau, pas de modele lourd) ;
- *  2. l'entropie conditionnelle d'un modele n-gramme *appris sur le texte
- *     lui-meme* : un texte genere se predit mieux lui-meme ;
- *  3. la variance de la surprise mot a mot, qui est l'equivalent lexical de la
- *     burstiness (un LLM produit une courbe de surprise lisse).
+ * The perplexity proxy combines three independent signals:
+ *  1. mean surprisal under Zipf's law over bundled frequency lists (no network
+ *     call, no heavy model);
+ *  2. the conditional entropy of an n-gram model LEARNED FROM THE TEXT ITSELF:
+ *     generated text predicts itself better;
+ *  3. the variance of word-to-word surprisal, the lexical counterpart of
+ *     burstiness (an LLM produces a smooth surprisal curve).
  *
- * Ce n'est PAS une perplexite de modele de langue reelle. C'est une
- * approximation calculable cote client, documentee comme telle.
+ * This is NOT a real language-model perplexity. It is a client-side computable
+ * approximation, documented as such.
  */
 
 import { mean, stdev, cv, entropy, normalizedEntropy, counter, quantile, skewness } from '../core/stats.js';
@@ -23,7 +23,7 @@ export function entropyFeatures(doc, lang = 'en') {
   const tokens = doc.lower;
   if (tokens.length < 5) return { features: f, surprisals: [] };
 
-  // 1. Surprise zipfienne
+  // 1. Zipfian surprisal
   const surprisals = tokens.map((w) => wordSurprisal(w, lang));
   f['ent.surprisalMean'] = mean(surprisals);
   f['ent.surprisalSd'] = stdev(surprisals);
@@ -37,9 +37,9 @@ export function entropyFeatures(doc, lang = 'en') {
   f['ent.lowSurprisalRatio'] = surprisals.filter((s) => s < 8).length / surprisals.length;
   f['ent.highSurprisalRatio'] = surprisals.filter((s) => s > 16).length / surprisals.length;
 
-  // Surprise restreinte au vocabulaire connu + taux de mots hors vocabulaire.
-  // Ces deux signaux separent le "texte previsible" du "texte savant", que la
-  // surprise brute confond systematiquement.
+  // Surprisal restricted to known vocabulary, plus the out-of-vocabulary rate.
+  // Together these two separate "predictable text" from "learned text", which
+  // raw surprisal systematically conflates.
   const iv = tokens.map((w) => inVocabSurprisal(w, lang)).filter((v) => v !== null);
   f['ent.oovRate'] = 1 - iv.length / tokens.length;
   f['ent.ivSurprisalMean'] = mean(iv);
@@ -48,13 +48,13 @@ export function entropyFeatures(doc, lang = 'en') {
   f['ent.ivSurprisalP90'] = quantile(iv, 0.9);
   f['ent.ivLowRatio'] = iv.length ? iv.filter((s) => s < 7).length / iv.length : 0;
 
-  // Burstiness de la surprise : moyenne des ecarts absolus successifs.
+  // Burstiness of surprisal: mean of successive absolute differences.
   const deltas = [];
   for (let i = 1; i < surprisals.length; i += 1) deltas.push(Math.abs(surprisals[i] - surprisals[i - 1]));
   f['ent.surprisalDeltaMean'] = mean(deltas);
   f['ent.surprisalDeltaSd'] = stdev(deltas);
 
-  // Surprise agregee par phrase : un humain a des phrases inegalement "denses".
+  // Surprisal aggregated per sentence: a human writes unevenly "dense" sentences.
   const perSentence = doc.sentences.map((s) => {
     const ws = s.text.toLowerCase().match(/[\p{L}\p{N}'’-]+/gu) ?? [];
     return ws.length ? mean(ws.map((w) => wordSurprisal(w, lang))) : 0;
@@ -63,7 +63,7 @@ export function entropyFeatures(doc, lang = 'en') {
   f['ent.sentenceSurprisalSd'] = stdev(perSentence);
   f['ent.sentenceSurprisalCv'] = cv(perSentence);
 
-  // 2. Auto-predictibilite n-gramme (modele appris sur le texte)
+  // 2. N-gram self-predictability (model learned from the text)
   for (const n of [2, 3]) {
     const cond = conditionalEntropy(tokens, n);
     f[`ent.wordCondEntropy${n}`] = cond;
@@ -73,7 +73,7 @@ export function entropyFeatures(doc, lang = 'en') {
   f['ent.selfPredictability'] = f['ent.wordUnigramEntropy'] > 0
     ? 1 - f['ent.wordCondEntropy2'] / f['ent.wordUnigramEntropy'] : 0;
 
-  // 3. Entropie de caracteres a plusieurs ordres
+  // 3. Character entropy at several orders
   const canonical = doc.canonical;
   for (const n of [1, 2, 3, 4]) {
     const grams = counter(charNgrams(canonical.slice(0, 60000), n));
@@ -82,7 +82,7 @@ export function entropyFeatures(doc, lang = 'en') {
   }
   f['ent.charCondEntropy'] = (f['ent.charEntropy3'] || 0) - (f['ent.charEntropy2'] || 0);
 
-  // Diversite des n-grammes de mots : plus elle est faible, plus le texte est previsible.
+  // Word n-gram diversity: the lower it is, the more predictable the text.
   for (const n of [2, 3, 4, 5]) {
     const grams = ngrams(tokens, n);
     const uniq = new Set(grams).size;
@@ -93,9 +93,8 @@ export function entropyFeatures(doc, lang = 'en') {
 }
 
 /**
- * Entropie conditionnelle H(w_n | w_1..w_{n-1}) estimee sur le texte lui-meme.
- * Une valeur basse par rapport a l'entropie unigramme signale un texte tres
- * auto-similaire.
+ * Conditional entropy H(w_n | w_1..w_{n-1}) estimated over the text itself.
+ * A low value relative to the unigram entropy signals a highly self-similar text.
  */
 export function conditionalEntropy(tokens, n = 2) {
   if (tokens.length <= n) return 0;

@@ -1,25 +1,25 @@
 /**
- * Recuperation du contenu des pages candidates.
+ * Fetching the content of candidate pages.
  *
- * Un navigateur ne peut pas telecharger une page arbitraire : la politique
- * d'origine croisee l'interdit. On passe donc par un service d'extraction de
- * texte configurable (par defaut r.jina.ai, qui renvoie le texte brut d'une URL
- * et autorise le CORS).
+ * A browser cannot download an arbitrary page: the same-origin policy forbids
+ * it. We therefore go through a configurable text-extraction service (r.jina.ai
+ * by default, which returns a URL's plain text and allows CORS).
  *
- * Consequence a assumer et a afficher : l'URL analysee transite par ce service.
- * Si l'utilisateur ne veut pas, il desactive l'option et l'analyse se limite
- * aux extraits fournis par le moteur de recherche.
+ * A consequence to own and to display: the analysed URL passes through that
+ * service. If the user objects, they disable the option and the analysis falls
+ * back to the snippets provided by the search engine.
  */
 
 import { fetchWithTimeout, withRetry } from '../util/async.js';
 import { PLAGIARISM, READER } from '../config.js';
 import { normalizeText } from '../core/tokenize.js';
+import { t } from '../i18n/index.js';
 
 const cache = new Map();
 
 /**
- * Telecharge et nettoie le texte d'une page.
- * @returns {Promise<{text:string, truncated:boolean}|null>} null si echec.
+ * Download and clean a page's text.
+ * @returns {Promise<{text:string, truncated:boolean}|null>} null on failure.
  */
 export async function fetchPageText(url, settings, onLog) {
   if (cache.has(url)) return cache.get(url);
@@ -39,7 +39,7 @@ export async function fetchPageText(url, settings, onLog) {
     }, {
       retries: 1,
       baseDelay: 1200,
-      onRetry: (err) => onLog?.(`Lecture de ${host(url)} : nouvelle tentative (${err.message})`),
+      onRetry: (err) => onLog?.({ key: 'logs.readRetry', params: { host: host(url), error: err.message } }),
     });
 
     const cleaned = cleanExtractedText(result);
@@ -49,13 +49,13 @@ export async function fetchPageText(url, settings, onLog) {
     cache.set(url, value);
     return value;
   } catch (err) {
-    onLog?.(`Lecture impossible de ${host(url)} : ${err.message}`);
+    onLog?.({ key: 'logs.readFailed', params: { host: host(url), error: err.message } });
     cache.set(url, null);
     return null;
   }
 }
 
-/** Retire le bruit markdown / navigation laisse par les extracteurs. */
+/** Strip the markdown / navigation noise left behind by extractors. */
 function cleanExtractedText(raw) {
   return normalizeText(
     String(raw)

@@ -1,126 +1,168 @@
 /* =========================================================================
-   Fondations : tokens de design, reset, typographie.
-   L'ADN visuel est le meme que le portfolio : verre depoli sur fond aurore,
-   accents violet/cyan, coins tres arrondis, contrastes doux.
+   Foundations — design tokens, reset, typography.
+
+   The visual identity is taken directly from the portfolio's "Liquid Glass"
+   system: a luminous light background, white translucent glass, deep navy
+   text. Palette, easing curves and radii below are the same values used
+   there, so the two sites read as one family.
    ========================================================================= */
 
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
 :root {
-  color-scheme: dark;
+  color-scheme: light;
 
-  /* Palette de base */
-  --bg-0: #07070d;
-  --bg-1: #0c0d16;
-  --bg-2: #111324;
+  /* --- Backgrounds (light) --- */
+  --ink-950: #dcebfa;  /* page base */
+  --ink-900: #c7dff6;
+  --ink-800: #afd0f0;
 
-  /* Surfaces de verre */
-  --glass-bg: rgba(255, 255, 255, 0.045);
-  --glass-bg-strong: rgba(255, 255, 255, 0.075);
-  --glass-border: rgba(255, 255, 255, 0.11);
-  --glass-border-strong: rgba(255, 255, 255, 0.2);
-  --glass-highlight: rgba(255, 255, 255, 0.5);
-  --glass-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.75);
-  --glass-blur: 22px;
+  /* --- Text, strongest to faintest --- */
+  --ink-100: #0a2540;  /* primary text (deep navy) */
+  --ink-200: #1e3a5f;
+  --ink-300: #3d5a7d;
 
-  /* Texte */
-  --text-1: #f2f3f8;
-  --text-2: #b6b9c9;
-  --text-3: #7f8397;
-  --text-inverse: #0a0a12;
+  /*
+   * Accents come in two families, which is essential on a luminous blue
+   * background:
+   *   - `--accent-*` are the DEEP tints, the only ones keeping WCAG AA
+   *     contrast once laid on white glass. Used for text and icons.
+   *   - `--vivid-*` are the BRIGHT tints, used for FILLS (bars, gauges, dots)
+   *     where contrast rules do not apply.
+   */
+  --accent-cyan: #0b5fbf;
+  --accent-violet: #6d28d9;
+  --accent-magenta: #be185d;
+  --accent-green: #065f46;
+  --accent-amber: #92400e;
+  --accent-orange: #9a3412;
 
-  /* Accents */
-  --accent: #8b7cff;
-  --accent-2: #45d6f2;
-  --accent-soft: rgba(139, 124, 255, 0.16);
-  --gradient: linear-gradient(115deg, #8b7cff 0%, #6f8dff 45%, #45d6f2 100%);
+  --vivid-cyan: #22d3ee;
+  --vivid-violet: #a78bfa;
+  --vivid-magenta: #f472b6;
+  --vivid-green: #34d399;
+  --vivid-amber: #fbbf24;
+  --vivid-orange: #fb923c;
 
-  /* Etats semantiques */
-  --ok: #3fd6a0;
-  --warn: #f2c14e;
-  --alert: #ff9d5c;
-  --danger: #ff6b81;
-  --ok-soft: rgba(63, 214, 160, 0.14);
-  --warn-soft: rgba(242, 193, 78, 0.14);
-  --alert-soft: rgba(255, 157, 92, 0.14);
-  --danger-soft: rgba(255, 107, 129, 0.14);
+  /* Semantic aliases, so components never hardcode a hue. */
+  --ok: var(--accent-green);
+  --warn: var(--accent-amber);
+  --alert: var(--accent-orange);
+  --danger: var(--accent-magenta);
+  --ok-fill: var(--vivid-green);
+  --warn-fill: var(--vivid-amber);
+  --alert-fill: var(--vivid-orange);
+  --danger-fill: var(--vivid-magenta);
 
-  /* Geometrie */
-  --r-sm: 10px;
-  --r-md: 16px;
-  --r-lg: 22px;
-  --r-xl: 30px;
+  --ok-soft: rgba(6, 95, 70, 0.1);
+  --warn-soft: rgba(146, 64, 14, 0.1);
+  --alert-soft: rgba(154, 52, 18, 0.1);
+  --danger-soft: rgba(190, 24, 93, 0.1);
+  --accent-soft: rgba(11, 95, 191, 0.1);
+
+  /* --- Geometry: generous radii, in the spirit of iOS tiles --- */
+  --r-sm: 12px;
+  --r-md: 18px;
+  --r-lg: 28px;   /* 1.75rem */
+  --r-xl: 36px;   /* 2.25rem */
   --gap: 20px;
   --maxw: 1180px;
 
-  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  --mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* --- Glow shadows, one per accent --- */
+  --glow-cyan: 0 18px 40px -14px rgba(11, 95, 191, 0.45);
+  --glow-violet: 0 18px 40px -14px rgba(109, 40, 217, 0.42);
+  --glow-magenta: 0 18px 40px -14px rgba(190, 24, 93, 0.4);
+  --glow-green: 0 18px 40px -14px rgba(6, 95, 70, 0.38);
 
-  --ease: cubic-bezier(0.22, 0.61, 0.36, 1);
-}
+  /*
+   * Easing curves. The first mimics the iOS spring (slight overshoot), the
+   * second is for transitions that must not bounce.
+   */
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.32, 0.72, 0, 1);
 
-/* Theme clair : memes tokens, valeurs inversees. Le verre reste du verre,
-   mais pose sur un fond lumineux. */
-:root[data-theme='light'] {
-  color-scheme: light;
-  --bg-0: #eef0f7;
-  --bg-1: #f6f7fb;
-  --bg-2: #ffffff;
-  --glass-bg: rgba(255, 255, 255, 0.62);
-  --glass-bg-strong: rgba(255, 255, 255, 0.82);
-  --glass-border: rgba(16, 18, 38, 0.09);
-  --glass-border-strong: rgba(16, 18, 38, 0.16);
-  --glass-highlight: rgba(255, 255, 255, 0.95);
-  --glass-shadow: 0 20px 50px -22px rgba(30, 34, 70, 0.35);
-  --text-1: #14162a;
-  --text-2: #4b4f68;
-  --text-3: #767b93;
-  --text-inverse: #ffffff;
-  --accent: #6350e8;
-  --accent-2: #0f9bc4;
-  --accent-soft: rgba(99, 80, 232, 0.12);
-  --ok: #0f8f63;
-  --warn: #a3781a;
-  --alert: #c0611f;
-  --danger: #cf2f4c;
+  /* -apple-system first: on Mac and iPhone the real SF Pro is used;
+     Inter takes over everywhere else. */
+  --font: -apple-system, BlinkMacSystemFont, 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 *,
 *::before,
 *::after { box-sizing: border-box; }
 
-html { -webkit-text-size-adjust: 100%; scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+}
 
 body {
   margin: 0;
   min-height: 100vh;
+  overflow-x: hidden;
   font-family: var(--font);
   font-size: 15px;
   line-height: 1.6;
-  color: var(--text-1);
-  background: var(--bg-0);
-  -webkit-font-smoothing: antialiased;
-  overflow-x: hidden;
+  color: var(--ink-100);
+  background: var(--ink-950);
+  letter-spacing: -0.011em; /* slight tightening, like SF Pro rendering */
 }
 
-h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; }
-h1 { font-size: clamp(28px, 4vw, 42px); letter-spacing: -0.035em; }
-h2 { font-size: 20px; }
+h1, h2, h3, h4 { margin: 0; font-weight: 600; line-height: 1.22; letter-spacing: -0.022em; }
+h1 { font-size: clamp(30px, 4.2vw, 46px); letter-spacing: -0.035em; }
+h2 { font-size: 21px; }
 h3 { font-size: 15px; }
 p { margin: 0 0 12px; }
 p:last-child { margin-bottom: 0; }
 
-a { color: var(--accent-2); text-decoration: none; }
+a { color: var(--accent-cyan); text-decoration: none; font-weight: 500; }
 a:hover { text-decoration: underline; }
 
 button, input, select, textarea { font: inherit; color: inherit; }
 
-code, kbd, .mono { font-family: var(--mono); font-size: 0.88em; }
+code, kbd, .mono {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  letter-spacing: 0;
+}
 
-::selection { background: var(--accent-soft); color: var(--text-1); }
+::selection { background: rgba(11, 95, 191, 0.22); color: #0a2540; }
 
 :focus-visible {
-  outline: 2px solid var(--accent-2);
+  outline: 2px solid var(--accent-cyan);
   outline-offset: 3px;
-  border-radius: 6px;
+  border-radius: 12px;
+}
+
+/* Thin, discreet scrollbar, in the macOS spirit. */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(10, 37, 64, 0.22);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(10, 37, 64, 0.38);
+  background-clip: content-box;
+}
+
+/* Headline gradient: deep blue to electric blue to violet, readable on light. */
+.text-gradient {
+  background-image: linear-gradient(100deg, #0a2540 0%, #0b5fbf 40%, #4c1d95 75%, #0a2540 100%);
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: gradient-x 8s ease infinite;
+}
+
+@keyframes gradient-x {
+  0%, 100% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
 }
 
 .visually-hidden {
@@ -133,15 +175,17 @@ code, kbd, .mono { font-family: var(--mono); font-size: 0.88em; }
   border: 0;
 }
 
-.muted { color: var(--text-2); }
-.dim { color: var(--text-3); }
+.muted { color: var(--ink-200); }
+.dim { color: var(--ink-300); }
 .small { font-size: 13px; }
 .tiny { font-size: 12px; }
-.nowrap { white-space: nowrap; }
 .tabular { font-variant-numeric: tabular-nums; }
+[hidden] { display: none !important; }
 
-/* Respect des preferences systeme : aucune animation superflue. */
+/* System preference respected: no motion, fades only. Material effects
+   (chromatic fringe, specular sheen) stay — they do not move. */
 @media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;

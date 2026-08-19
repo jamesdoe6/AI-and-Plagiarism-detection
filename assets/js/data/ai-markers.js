@@ -1,13 +1,12 @@
 /**
- * Lexiques de marqueurs frequemment sur-representes dans les productions de
- * LLM grand public (GPT / Claude / Gemini / Llama, versions "chat" alignees
- * RLHF).
+ * Lexicons of markers frequently over-represented in mainstream LLM output
+ * (GPT / Claude / Gemini / Llama, RLHF-aligned "chat" variants).
  *
- * ATTENTION : aucun de ces marqueurs n'est une preuve. Un humain peut ecrire
- * "il est important de noter que". Ils ne pesent que par accumulation et sont
- * volontairement ponderes faiblement dans l'ensemble.
+ * WARNING: none of these markers is proof. A human can write "it is important to
+ * note that". They only carry weight by accumulation, and are deliberately
+ * weighted low within the ensemble.
  *
- * Chaque entree devient une metrique du vecteur de caracteristiques.
+ * Each entry becomes one metric in the feature vector.
  */
 
 export const AI_PHRASES_EN = [
@@ -64,7 +63,7 @@ export const AI_PHRASES_FR = [
   'j\'espere que cela vous aide', 'en tant qu\'ia', 'en tant que modele de langage',
 ];
 
-/** Connecteurs logiques : leur densite en debut de phrase est tres revelatrice. */
+/** Logical connectives: their density in sentence-initial position is telling. */
 export const TRANSITIONS = {
   en: ['however', 'therefore', 'moreover', 'furthermore', 'additionally', 'consequently',
     'nevertheless', 'nonetheless', 'thus', 'hence', 'accordingly', 'similarly', 'likewise',
@@ -76,7 +75,7 @@ export const TRANSITIONS = {
     'pourtant', 'aussi', 'puis', 'ensuite', 'premierement', 'deuxiemement'],
 };
 
-/** Marqueurs de prudence / hedging : sur-representes dans le texte aligne RLHF. */
+/** Hedging markers: over-represented in RLHF-aligned text. */
 export const HEDGES = {
   en: ['may', 'might', 'could', 'perhaps', 'possibly', 'potentially', 'generally', 'typically',
     'often', 'usually', 'somewhat', 'relatively', 'arguably', 'seemingly', 'appears to',
@@ -86,7 +85,7 @@ export const HEDGES = {
     'dans certains cas', 'en partie', 'dans une certaine mesure', 'plutot', 'apparemment'],
 };
 
-/** Marqueurs de subjectivite humaine : leur absence est un signal. */
+/** Markers of human subjectivity: their absence is itself a signal. */
 export const PERSONAL_MARKERS = {
   en: ['i think', 'i believe', 'i feel', 'in my opinion', 'my experience', 'i remember',
     'i noticed', 'honestly', 'frankly', 'to be honest', 'i guess', 'i mean', 'you know',
@@ -96,7 +95,7 @@ export const PERSONAL_MARKERS = {
     "j'imagine", 'je veux dire', 'tu sais', 'personnellement', "j'etais", "j'ai", "j'ai essaye"],
 };
 
-/** Formes lexicales tres rares chez un LLM aligne : familier, argot, fautes. */
+/** Lexical forms very rare in an aligned LLM: informal register, slang, errors. */
 export const HUMAN_NOISE = {
   en: ['gonna', 'wanna', 'kinda', 'sorta', 'yeah', 'nope', 'lol', 'btw', 'imo', 'tbh',
     'stuff', 'thing is', 'whatever', 'anyway', 'dunno', 'ain\'t', 'y\'know', 'huh'],

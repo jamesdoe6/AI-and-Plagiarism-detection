@@ -1,47 +1,49 @@
 /**
- * Detecteur 9 (optionnel) — Jugement d'un LLM distant.
+ * Detector 9 (optional) — Remote LLM judgement.
  *
- * Un modele de langue interroge sur l'origine d'un texte apporte un signal
- * *semantique* (coherence du vecu raconte, plausibilite des details, ton) que
- * les metriques statistiques ne captent pas. Il est donc complementaire dans
- * l'ensemble.
+ * Asking a language model about a text's origin brings a SEMANTIC signal
+ * (coherence of the experience being recounted, plausibility of details, tone)
+ * that statistical metrics cannot capture. It is therefore complementary within
+ * the ensemble.
  *
- * Confidentialite : le texte est envoye au fournisseur choisi par
- * l'utilisateur, et uniquement a celui-ci. Le detecteur est desactive par
- * defaut et l'interface le rappelle explicitement.
+ * Privacy: the text is sent to the provider chosen by the user, and only to
+ * that one. The detector is off by default and the interface says so plainly.
  *
- * Limite : un LLM est lui-meme un juge imparfait et sur-confiant. Son score est
- * donc lisse (jamais 0 % ni 100 %) et sa confiance plafonnee.
+ * Limitation: an LLM is itself an imperfect and over-confident judge. Its score
+ * is therefore smoothed (never 0 % nor 100 %) and its confidence capped.
  */
 
 import { fetchWithTimeout, withRetry, permanent } from '../util/async.js';
 import { AI_PROVIDERS } from '../config.js';
 import { clamp } from './base.js';
+import { t } from '../i18n/index.js';
 
-const PROMPT = `Tu es un expert en detection de texte genere par IA. Analyse le texte ci-dessous.
+const K = 'detectors.remoteLlm';
 
-Reponds UNIQUEMENT par un objet JSON valide, sans texte autour, au format :
-{"ai_probability": <nombre entre 0 et 100>, "confidence": <"faible"|"moyenne"|"elevee">, "signals": ["<signal 1>", "<signal 2>", "<signal 3>"], "reasoning": "<2 phrases maximum>"}
+const PROMPT = `You are an expert in detecting AI-generated text. Analyse the text below.
 
-Criteres : previsibilite lexicale, regularite du rythme des phrases, absence de details vecus verifiables, tournures d'assistant, uniformite du registre, erreurs humaines absentes.
-Sois prudent : un texte formel, academique ou ecrit par un locuteur non natif n'est PAS forcement genere. En cas de doute, reste proche de 50.
+Reply with ONLY a valid JSON object, no surrounding text, in this format:
+{"ai_probability": <number between 0 and 100>, "confidence": <"low"|"medium"|"high">, "signals": ["<signal 1>", "<signal 2>", "<signal 3>"], "reasoning": "<2 sentences maximum>"}
 
-TEXTE A ANALYSER :
+Criteria: lexical predictability, regularity of sentence rhythm, absence of verifiable lived detail, assistant boilerplate, uniformity of register, absence of human error.
+Be cautious: formal, academic, or non-native writing is NOT necessarily generated. When in doubt, stay close to 50.
+
+TEXT TO ANALYSE:
 ---
 `;
 
-/** Tronque le texte pour respecter les limites de contexte / de cout. */
+/** Truncate the text to respect context and cost limits. */
 function sample(text, maxChars = 12000) {
   if (text.length <= maxChars) return text;
   const head = text.slice(0, Math.floor(maxChars * 0.6));
   const tail = text.slice(-Math.floor(maxChars * 0.4));
-  return `${head}\n\n[...extrait tronque...]\n\n${tail}`;
+  return `${head}\n\n[...truncated extract...]\n\n${tail}`;
 }
 
 export const remoteLlmDetector = {
   id: 'remoteLlm',
-  label: 'Jugement LLM distant',
-  description: 'Second avis semantique demande a un modele de langue (optionnel, necessite une cle d\'API).',
+  labelKey: `${K}.label`,
+  descriptionKey: `${K}.description`,
   remote: true,
 
   isEnabled(settings) {
@@ -52,47 +54,43 @@ export const remoteLlmDetector = {
     const provider = AI_PROVIDERS[settings.aiProvider];
     const payloadText = `${PROMPT}${sample(doc.text)}\n---`;
 
-    const call = async () => {
-      const response = settings.aiProvider === 'anthropic'
-        ? await callAnthropic(provider, settings, payloadText)
-        : await callOpenAiCompatible(provider, settings, payloadText);
-      return response;
-    };
+    const call = async () => (settings.aiProvider === 'anthropic'
+      ? callAnthropic(provider, settings, payloadText)
+      : callOpenAiCompatible(provider, settings, payloadText));
 
     const raw = await withRetry(call, {
       retries: 2,
-      onRetry: (err, attempt, delay) => onLog?.(`LLM distant : nouvelle tentative ${attempt} dans ${delay} ms (${err.message})`),
+      onRetry: (err, attempt, delay) => onLog?.(t(`${K}.retry`, { attempt, delay, error: err.message })),
     });
 
     const parsed = parseJson(raw);
     if (!parsed || !Number.isFinite(parsed.ai_probability)) {
-      throw new Error('Reponse du modele illisible (JSON attendu).');
+      throw new Error(t(`${K}.errorParse`));
     }
 
-    // Lissage : on ramene le verdict vers le centre pour eviter les 0/100
-    // categoriques que les LLM produisent trop volontiers.
+    // Smoothing: pull the verdict back towards the centre to avoid the
+    // categorical 0/100 that LLMs produce far too readily.
     const smoothed = clamp(0.5 + (clamp(parsed.ai_probability / 100) - 0.5) * 0.88);
-    const confidenceMap = { faible: 0.4, moyenne: 0.62, elevee: 0.8 };
+    const confidenceMap = { low: 0.4, faible: 0.4, medium: 0.62, moyenne: 0.62, high: 0.8, elevee: 0.8 };
 
     return {
       id: this.id,
-      label: this.label,
+      labelKey: this.labelKey,
       score: smoothed,
       confidence: confidenceMap[String(parsed.confidence).toLowerCase()] ?? 0.55,
       evidence: [
         {
-          label: 'Verdict brut du modele',
+          labelKey: `${K}.ev1`,
           value: `${Number(parsed.ai_probability).toFixed(0)} %`,
           score: clamp(parsed.ai_probability / 100),
           direction: parsed.ai_probability > 60 ? 'ai' : parsed.ai_probability < 40 ? 'human' : 'neutral',
-          hint: parsed.reasoning ?? '',
+          hintText: parsed.reasoning ?? '',
         },
-        ...(Array.isArray(parsed.signals) ? parsed.signals : []).slice(0, 4).map((s) => ({
-          label: 'Signal releve',
-          value: String(s).slice(0, 160),
+        ...(Array.isArray(parsed.signals) ? parsed.signals : []).slice(0, 4).map((signal) => ({
+          labelKey: `${K}.ev2`,
+          value: String(signal).slice(0, 160),
           score: 0.6,
           direction: 'neutral',
-          hint: '',
         })),
       ],
       raw: parsed,
@@ -107,7 +105,7 @@ async function callAnthropic(provider, settings, prompt) {
       'content-type': 'application/json',
       'x-api-key': settings.aiApiKey,
       'anthropic-version': '2023-06-01',
-      // Necessaire pour appeler l'API depuis un navigateur.
+      // Required to call the API from a browser.
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
@@ -145,7 +143,7 @@ async function callOpenAiCompatible(provider, settings, prompt) {
 
 function httpError(status, body) {
   const message = `HTTP ${status}${body ? ` — ${body.slice(0, 200)}` : ''}`;
-  // 401/403/404/422 : inutile de rejouer.
+  // 4xx: replaying is pointless.
   if ([400, 401, 403, 404, 422].includes(status)) return permanent(message, { status });
   return Object.assign(new Error(message), { status });
 }

@@ -1,8 +1,9 @@
 /**
- * Detection de langue legere (fr / en / autre) par mots-outils.
- * Le choix de la langue conditionne les ressources utilisees (mots-outils,
- * marqueurs, table de frequences) : se tromper degrade fortement la fiabilite,
- * d'ou le renvoi d'un indice de confiance exploitable par l'ensemble.
+ * Lightweight language detection (fr / en / other) from function words.
+ *
+ * The language choice drives which resources are used (function words, markers,
+ * frequency tables): getting it wrong badly degrades reliability, hence the
+ * confidence indicator returned for the ensemble to act on.
  */
 
 import { FUNCTION_WORDS_EN, FUNCTION_WORDS_FR } from '../data/function-words.js';
@@ -38,8 +39,8 @@ export function detectLanguage(text) {
     confidence: Math.min(1, confidence * 0.5 + coverage),
     coverage,
     scores: { en, fr },
-    // Signale un texte qui ne ressemble ni au francais ni a l'anglais :
-    // les detecteurs doivent alors reduire leur confiance.
+    // Flags a text that resembles neither French nor English: detectors must
+    // then reduce their confidence.
     supported: coverage > 0.12,
   };
 }

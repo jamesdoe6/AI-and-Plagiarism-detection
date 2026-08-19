@@ -1,23 +1,24 @@
 /**
- * Detecteur 5 — Marqueurs lexicaux de style LLM.
+ * Detector 5 — Lexical markers of LLM style.
  *
- * Comptage d'expressions sur-representees dans les sorties de modeles alignes
- * (« il est important de noter », « delve into », connecteurs en tete de
- * phrase, hedging systematique), moins les marqueurs d'implication personnelle
- * et de registre familier qui, eux, tirent vers l'humain.
+ * Counts phrases over-represented in aligned-model output ("it is important to
+ * note", "delve into", sentence-initial connectives, systematic hedging), minus
+ * markers of personal involvement and informal register, which pull towards
+ * human.
  *
- * Limite forte et assumee : ce detecteur est le plus facile a tromper (il
- * suffit de supprimer quelques expressions) et le plus generateur de faux
- * positifs sur les textes academiques et institutionnels. D'ou un score borne
- * et une confiance plafonnee.
+ * Strong, acknowledged limitation: this is the easiest detector to defeat (just
+ * remove a few phrases) and the biggest producer of false positives on academic
+ * and institutional writing. Hence a bounded score and a capped confidence.
  */
 
-import { combine, evidence, lengthConfidence, ramp, get, clamp } from './base.js';
+import { combine, evidence, lengthConfidence, ramp, get, clamp, num } from './base.js';
+
+const K = 'detectors.markers';
 
 export const markersDetector = {
   id: 'markers',
-  label: 'Marqueurs lexicaux',
-  description: 'Expressions, connecteurs et tournures sur-representes dans les productions de LLM.',
+  labelKey: `${K}.label`,
+  descriptionKey: `${K}.description`,
 
   run({ features, doc, markerHits = [] }) {
     const phrasePer1k = get(features, 'mk.aiPhrasePer1k');
@@ -36,8 +37,8 @@ export const markersDetector = {
     const s3 = ramp(transitions, 4, 22);
     const s4 = ramp(transOpeners, 0.05, 0.30);
     const s5 = ramp(hedges, 5, 22);
-    const s6 = ramp(personal, 6, 0);          // beaucoup de "je" => humain
-    const s7 = ramp(noise, 2.5, 0);           // registre familier => humain
+    const s6 = ramp(personal, 6, 0);          // lots of "I" => human
+    const s7 = ramp(noise, 2.5, 0);           // informal register => human
     const s8 = tells > 0 ? 0.95 : 0.5;
     const s9 = ramp((notOnly + tricolon) / Math.max(1, doc.sentenceCount / 10), 0.4, 3);
 
@@ -53,25 +54,23 @@ export const markersDetector = {
       { score: s9, weight: 0.7 },
     ]);
 
-    // Score borne : les marqueurs seuls ne doivent jamais suffire a conclure.
+    // Bounded score: markers alone must never be enough to conclude.
     const score = clamp(0.10 + raw * 0.82);
 
     return {
       id: this.id,
-      label: this.label,
+      labelKey: this.labelKey,
       score,
       confidence: Math.min(0.75, lengthConfidence(doc.wordCount)),
       evidence: [
-        evidence('Expressions typiques / 1000 mots', phrasePer1k.toFixed(2), s1),
-        evidence('Expressions distinctes reperees', String(distinct), s2,
-          markerHits.slice(0, 6).map((h) => `« ${h.text} » x${h.count}`).join(', ')),
-        evidence('Connecteurs en tete de phrase', `${(transOpeners * 100).toFixed(1)} %`, s4),
-        evidence('Marques de subjectivite / 1000 mots', personal.toFixed(2), s6,
-          'Recit personnel et opinions explicites tirent vers l\'humain.'),
-        evidence('Registre familier / 1000 mots', noise.toFixed(2), s7),
-        tells > 0 ? evidence('Formules d\'assistant detectees', String(tells), 0.95,
-          'Ex. « en tant que modele de langage », « j\'espere que cela vous aide ».') : null,
+        evidence(`${K}.ev1`, phrasePer1k.toFixed(2), s1),
+        evidence(`${K}.ev2`, String(distinct), s2),
+        evidence(`${K}.ev3`, `${(transOpeners * 100).toFixed(1)} %`, s4),
+        evidence(`${K}.ev4`, personal.toFixed(2), s6, `${K}.ev4Hint`),
+        evidence(`${K}.ev5`, noise.toFixed(2), s7),
+        tells > 0 ? evidence(`${K}.ev6`, String(tells), 0.95, `${K}.ev6Hint`) : null,
       ].filter(Boolean),
+      markerHits,
     };
   },
 };

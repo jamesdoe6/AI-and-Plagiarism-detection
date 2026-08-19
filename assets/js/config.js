@@ -1,13 +1,11 @@
 /**
- * Configuration centrale de l'application.
+ * Central application configuration.
  *
- * Tout ce qui est "reglable" (seuils, poids de l'ensemble, limites, fournisseurs
- * de recherche) est regroupe ici pour que la mise a jour du detecteur ne demande
- * pas de toucher a la logique metier.
+ * Everything "tunable" (thresholds, ensemble weights, limits, search providers)
+ * lives here, so updating the detector never means touching business logic.
  *
- * Les preferences utilisateur (cles d'API, seuils personnalises) sont
- * persistees dans localStorage, jamais envoyees ailleurs que vers le
- * fournisseur choisi par l'utilisateur.
+ * User preferences (API keys, custom thresholds) are persisted in localStorage
+ * and never sent anywhere other than the provider the user chose.
  */
 
 export const APP = {
@@ -16,7 +14,7 @@ export const APP = {
   storageKey: 'apd.settings.v1',
 };
 
-/** Limites d'entree. */
+/** Input limits. */
 export const LIMITS = {
   maxWords: 100000,
   minWordsForAnalysis: 40,
@@ -25,21 +23,20 @@ export const LIMITS = {
 };
 
 /**
- * Seuils d'interpretation du score IA.
- * Volontairement conservateurs : on n'annonce "probablement IA" qu'a partir de
- * 70 %, et "tres probablement IA" a partir de 85 %, afin de limiter les faux
- * positifs (particulierement frequents sur les textes de locuteurs non natifs
- * et sur les textes techniques tres formates).
+ * Interpretation thresholds for the AI score.
+ * Deliberately conservative: we only say "likely AI" from 70 %, and "very
+ * likely AI" from 85 %, in order to limit false positives (which are especially
+ * frequent on non-native writing and on heavily formatted technical text).
  */
 export const AI_THRESHOLDS = {
-  human: 30,       // < 30 %  -> signature plutot humaine
-  uncertain: 55,   // 30-55 % -> indetermine
-  likely: 70,      // 55-70 % -> signaux mixtes
-  strong: 85,      // 70-85 % -> probablement assiste par IA
-                   // >= 85 % -> signature fortement compatible avec une IA
+  human: 30,       // < 30 %  -> rather human signature
+  uncertain: 55,   // 30-55 % -> undetermined
+  likely: 70,      // 55-70 % -> mixed signals
+  strong: 85,      // 70-85 % -> likely AI-assisted
+                   // >= 85 % -> signature strongly consistent with AI
 };
 
-/** Seuils d'interpretation du score de plagiat (couverture du texte). */
+/** Interpretation thresholds for the plagiarism score (text coverage). */
 export const PLAGIARISM_THRESHOLDS = {
   low: 8,
   moderate: 20,
@@ -47,10 +44,9 @@ export const PLAGIARISM_THRESHOLDS = {
 };
 
 /**
- * Poids par defaut des detecteurs locaux dans l'ensemble.
- * La somme n'a pas besoin de valoir 1 : l'ensemble normalise.
- * Pour ajouter un detecteur : l'enregistrer dans detectors/ensemble.js et
- * ajouter son id ici.
+ * Default weights of the detectors within the ensemble.
+ * The sum need not be 1: the ensemble normalises.
+ * To add a detector: register it in detectors/ensemble.js and add its id here.
  */
 export const DETECTOR_WEIGHTS = {
   perplexity: 1.35,
@@ -65,99 +61,99 @@ export const DETECTOR_WEIGHTS = {
   remoteClassifier: 1.5,
 };
 
-/** Parametres du moteur de plagiat. */
+/** Plagiarism engine parameters. */
 export const PLAGIARISM = {
-  passageWords: 42,        // taille d'une fenetre d'analyse
-  passageOverlap: 18,      // recouvrement entre fenetres
-  shingleSize: 5,          // n-grammes de mots pour les shingles
-  maxQueries: 24,          // budget de requetes moteur par analyse
-  maxFetch: 12,            // nombre max de pages telechargees pour comparaison fine
-  minSimilarity: 0.32,     // en dessous : bruit, on ignore
-  reportSimilarity: 0.45,  // seuil d'affichage dans le tableau des sources
+  passageWords: 42,        // size of one analysis window
+  passageOverlap: 18,      // overlap between windows
+  shingleSize: 5,          // word n-grams used for shingles
+  maxQueries: 24,          // engine query budget per analysis
+  maxFetch: 12,            // max pages downloaded for detailed comparison
+  minSimilarity: 0.32,     // below this: noise, discarded
+  reportSimilarity: 0.45,  // display threshold in the sources table
   concurrency: 4,
   requestTimeoutMs: 15000,
   fetchTimeoutMs: 20000,
   retries: 2,
 };
 
-/** Fournisseurs de recherche web supportes (tous appelables depuis le navigateur). */
+/** Supported web search providers (all callable from a browser). */
 export const SEARCH_PROVIDERS = {
   none: {
     id: 'none',
-    label: 'Aucun (sources locales uniquement)',
+    labelKey: 'providers.none',
     needsKey: false,
     docs: 'docs/API-SETUP.md',
   },
   google_cse: {
     id: 'google_cse',
-    label: 'Google Programmable Search (JSON API)',
+    labelKey: 'providers.googleCse',
     needsKey: true,
     needsExtra: 'cx',
-    extraLabel: 'ID du moteur (cx)',
+    extraLabelKey: 'providers.engineId',
     docs: 'https://developers.google.com/custom-search/v1/overview',
   },
   serper: {
     id: 'serper',
-    label: 'Serper.dev (Google)',
+    labelKey: 'providers.serper',
     needsKey: true,
     docs: 'https://serper.dev',
   },
   brave: {
     id: 'brave',
-    label: 'Brave Search API',
+    labelKey: 'providers.brave',
     needsKey: true,
     docs: 'https://brave.com/search/api/',
   },
   bing: {
     id: 'bing',
-    label: 'Bing Web Search (Azure)',
+    labelKey: 'providers.bing',
     needsKey: true,
     docs: 'https://learn.microsoft.com/bing/search-apis/',
   },
   custom: {
     id: 'custom',
-    label: 'Endpoint personnalise (proxy maison)',
+    labelKey: 'providers.custom',
     needsKey: false,
     needsExtra: 'endpoint',
-    extraLabel: 'URL de l\'endpoint',
+    extraLabelKey: 'providers.endpointUrl',
     docs: 'docs/API-SETUP.md',
   },
 };
 
-/** Fournisseurs optionnels pour le detecteur IA distant. */
+/** Optional providers for the remote AI detector. */
 export const AI_PROVIDERS = {
-  none: { id: 'none', label: 'Aucun (analyse locale uniquement)', needsKey: false },
+  none: { id: 'none', labelKey: 'providers.aiNone', needsKey: false },
   anthropic: {
     id: 'anthropic',
-    label: 'Claude (Anthropic Messages API)',
+    labelKey: 'providers.anthropic',
     needsKey: true,
     defaultModel: 'claude-sonnet-5',
     endpoint: 'https://api.anthropic.com/v1/messages',
   },
   openai_compatible: {
     id: 'openai_compatible',
-    label: 'Endpoint compatible OpenAI (/chat/completions)',
+    labelKey: 'providers.openaiCompatible',
     needsKey: true,
     needsExtra: 'endpoint',
-    extraLabel: 'URL de base',
+    extraLabelKey: 'settings.baseUrl',
     defaultModel: 'gpt-4o-mini',
   },
   huggingface: {
     id: 'huggingface',
-    label: 'Hugging Face Inference (classifieur)',
+    labelKey: 'providers.huggingface',
     needsKey: true,
     defaultModel: 'openai-community/roberta-base-openai-detector',
     endpoint: 'https://api-inference.huggingface.co/models/',
   },
 };
 
-/** Extracteur de texte distant utilise pour comparer le texte source aux pages. */
+/** Remote text extractor used to compare the source text against pages. */
 export const READER = {
-  // r.jina.ai renvoie le texte brut d'une page et autorise le CORS.
+  // r.jina.ai returns a page's plain text and allows CORS.
   defaultTemplate: 'https://r.jina.ai/{url}',
 };
 
-/** Reglages par defaut, fusionnes avec ce qui est stocke localement. */
+/** Default settings, merged with whatever is stored locally. */
 export const DEFAULT_SETTINGS = {
   searchProvider: 'none',
   searchApiKey: '',
@@ -169,7 +165,6 @@ export const DEFAULT_SETTINGS = {
   readerTemplate: READER.defaultTemplate,
   useReader: true,
   expertMode: false,
-  theme: 'dark',
   aiThreshold: AI_THRESHOLDS.strong,
   maxQueries: PLAGIARISM.maxQueries,
   localSources: '',

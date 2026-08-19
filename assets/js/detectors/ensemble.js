@@ -1,26 +1,29 @@
 /**
- * Ensemble de detection.
+ * Detection ensemble.
  *
- * Principe (« ensemble detection ») : aucun detecteur unique n'est fiable. On
- * combine des signaux volontairement *orthogonaux* (information, rythme,
- * stylometrie, lexique, structure, compression, plus des modeles distants
- * optionnels) par une moyenne ponderee par la fiabilite, puis on evalue :
+ * Principle ("ensemble detection"): no single detector is reliable. We combine
+ * deliberately ORTHOGONAL signals (information, rhythm, stylometry, lexis,
+ * structure, compression, plus optional remote models) through a
+ * reliability-weighted mean, then evaluate:
  *
- *   - le score final (0-100 %) ;
- *   - le niveau de confiance, fonction de la longueur du texte, de l'accord
- *     entre detecteurs et de la disponibilite des modeles distants ;
- *   - un verdict textuel prudent, jamais binaire.
+ *   - the final score (0–100 %);
+ *   - the confidence level, a function of text length, agreement between
+ *     detectors and availability of remote models;
+ *   - a cautious, never binary, textual verdict.
  *
- * Regles de prudence codees en dur :
- *   - un texte de moins de 40 mots n'est pas note ;
- *   - le desaccord entre detecteurs tire le score vers 50 % ;
- *   - la langue non supportee (ni fr ni en) plafonne la confiance ;
- *   - le verdict "probablement IA" n'apparait qu'au-dessus du seuil configure
- *     (80 % par defaut).
+ * Hard-coded safeguards:
+ *   - a text under 40 words is not scored at all;
+ *   - disagreement between detectors pulls the score back towards 50 %;
+ *   - an unsupported language (neither fr nor en) caps confidence;
+ *   - the "likely AI" verdict only appears above the configured threshold
+ *     (85 % by default).
+ *
+ * Everything user-facing is returned as translation keys, never as strings, so
+ * the interface can switch language without re-running the analysis.
  */
 
 import { DETECTOR_WEIGHTS, AI_THRESHOLDS, LIMITS } from '../config.js';
-import { clamp, stdev, mean } from '../core/stats.js';
+import { clamp, stdev } from '../core/stats.js';
 import { extractFeatures } from '../features/index.js';
 
 import { perplexityDetector } from './perplexity.js';
@@ -34,7 +37,7 @@ import { compressionDetector } from './compression.js';
 import { remoteLlmDetector } from './remote-llm.js';
 import { remoteClassifierDetector } from './remote-classifier.js';
 
-/** Detecteurs locaux : toujours executes, aucun appel reseau. */
+/** Local detectors: always run, no network calls. */
 export const LOCAL_DETECTORS = [
   perplexityDetector,
   burstinessDetector,
@@ -46,11 +49,11 @@ export const LOCAL_DETECTORS = [
   compressionDetector,
 ];
 
-/** Detecteurs distants : executes uniquement si configures par l'utilisateur. */
+/** Remote detectors: only run when the user has configured them. */
 export const REMOTE_DETECTORS = [remoteLlmDetector, remoteClassifierDetector];
 
 /**
- * Lance l'analyse IA complete.
+ * Run the full AI analysis.
  * @param {string} text
  * @param {object} settings
  * @param {{onStep?:Function, onLog?:Function}} hooks
@@ -58,9 +61,9 @@ export const REMOTE_DETECTORS = [remoteLlmDetector, remoteClassifierDetector];
 export async function analyzeAi(text, settings, hooks = {}) {
   const { onStep = () => {}, onLog = () => {} } = hooks;
 
-  onStep('Extraction des metriques', 0.05);
-  const extraction = await extractFeatures(text, (label, ratio) => {
-    onStep(label, 0.05 + ratio * 0.35);
+  onStep({ key: 'steps.features' }, 0.05);
+  const extraction = await extractFeatures(text, (stepKey, ratio) => {
+    onStep({ key: stepKey }, 0.05 + ratio * 0.35);
   });
 
   const ctx = {
@@ -72,42 +75,65 @@ export async function analyzeAi(text, settings, hooks = {}) {
     onLog,
   };
 
-  // --- Detecteurs locaux ---
+  // --- Local detectors ---
   const results = [];
   LOCAL_DETECTORS.forEach((detector, i) => {
-    onStep(`Detecteur : ${detector.label}`, 0.45 + (i / LOCAL_DETECTORS.length) * 0.2);
+    onStep({ key: 'steps.detector', params: { label: detector.labelKey } },
+      0.45 + (i / LOCAL_DETECTORS.length) * 0.2);
     try {
       const result = detector.run(ctx);
-      results.push({ ...result, weight: DETECTOR_WEIGHTS[detector.id] ?? 1, description: detector.description });
-    } catch (err) {
-      onLog(`Detecteur ${detector.id} en echec : ${err.message}`);
       results.push({
-        id: detector.id, label: detector.label, unavailable: true,
-        error: err.message, score: 0.5, confidence: 0, weight: 0, evidence: [],
-        description: detector.description,
+        ...result,
+        weight: DETECTOR_WEIGHTS[detector.id] ?? 1,
+        descriptionKey: detector.descriptionKey,
+      });
+    } catch (err) {
+      onLog({ key: 'logs.detectorFailed', params: { id: detector.id, message: err.message } });
+      results.push({
+        id: detector.id,
+        labelKey: detector.labelKey,
+        descriptionKey: detector.descriptionKey,
+        unavailable: true,
+        errorText: err.message,
+        score: 0.5,
+        confidence: 0,
+        weight: 0,
+        evidence: [],
       });
     }
   });
 
-  // --- Detecteurs distants (optionnels, tolerants a la panne) ---
+  // --- Remote detectors (optional, failure-tolerant) ---
   for (const detector of REMOTE_DETECTORS) {
     if (!detector.isEnabled(settings)) continue;
-    onStep(`Detecteur distant : ${detector.label}`, 0.7);
+    onStep({ key: 'steps.remoteDetector', params: { label: detector.labelKey } }, 0.7);
     try {
       const result = await detector.run(ctx);
-      results.push({ ...result, weight: DETECTOR_WEIGHTS[detector.id] ?? 1, description: detector.description, remote: true });
-      onLog(`${detector.label} : ${(result.score * 100).toFixed(1)} %`);
-    } catch (err) {
-      onLog(`${detector.label} indisponible : ${err.message}`);
       results.push({
-        id: detector.id, label: detector.label, unavailable: true, remote: true,
-        error: err.message, score: 0.5, confidence: 0, weight: 0, evidence: [],
-        description: detector.description,
+        ...result,
+        weight: DETECTOR_WEIGHTS[detector.id] ?? 1,
+        descriptionKey: detector.descriptionKey,
+        remote: true,
+      });
+      onLog({ key: 'logs.remoteScore', params: { label: detector.labelKey, score: (result.score * 100).toFixed(1) } });
+    } catch (err) {
+      onLog({ key: 'logs.remoteUnavailable', params: { label: detector.labelKey, message: err.message } });
+      results.push({
+        id: detector.id,
+        labelKey: detector.labelKey,
+        descriptionKey: detector.descriptionKey,
+        unavailable: true,
+        remote: true,
+        errorText: err.message,
+        score: 0.5,
+        confidence: 0,
+        weight: 0,
+        evidence: [],
       });
     }
   }
 
-  onStep('Agregation de l\'ensemble', 0.9);
+  onStep({ key: 'steps.aggregating' }, 0.9);
   const aggregate = aggregateEnsemble(results, extraction, settings);
 
   return {
@@ -118,15 +144,14 @@ export async function analyzeAi(text, settings, hooks = {}) {
     language: extraction.language,
     doc: extraction.doc,
     markerHits: extraction.markerHits,
-    detail: extraction.detail,
   };
 }
 
 /**
- * Combine les detecteurs et produit score, confiance et verdict.
- * @param {object} [settings] permet de surcharger le seuil d'alerte choisi par
- *   l'utilisateur. Les bandes intermediaires sont derivees de ce seuil pour
- *   rester coherentes : deplacer le seuil deplace toute l'echelle.
+ * Combine the detectors and produce score, confidence and verdict.
+ * @param {object} [settings] lets the user override the alert threshold. The
+ *   intermediate bands are derived from it so the whole scale stays coherent:
+ *   moving the threshold moves the entire scale.
  */
 export function aggregateEnsemble(results, extraction, settings = {}) {
   const thresholds = resolveThresholds(settings.aiThreshold);
@@ -137,20 +162,28 @@ export function aggregateEnsemble(results, extraction, settings = {}) {
     return {
       score: null,
       confidence: 0,
-      confidenceLabel: 'insuffisante',
-      verdict: 'Texte trop court pour une estimation statistique fiable.',
+      confidenceKey: 'confidence.insufficient',
+      verdictKey: 'verdict.tooShort',
       agreement: 0,
       votes: { ai: 0, human: 0, neutral: 0 },
       tooShort: true,
-      reasons: [`Le texte compte ${doc.wordCount} mots ; il en faut au moins ${LIMITS.minWordsForAnalysis} pour que les metriques aient un sens (et ${LIMITS.minWordsForHighConfidence} pour une confiance elevee).`],
+      thresholds,
+      reasons: [{
+        key: 'reasons.tooShortDetail',
+        params: {
+          words: doc.wordCount,
+          min: LIMITS.minWordsForAnalysis,
+          recommended: LIMITS.minWordsForHighConfidence,
+        },
+      }],
     };
   }
 
-  // Ponderation : poids configure x confiance propre du detecteur.
+  // Weighting: configured weight x the detector's own confidence.
   const totalWeight = usable.reduce((a, r) => a + r.weight * Math.max(0.05, r.confidence), 0);
   const weighted = usable.reduce((a, r) => a + r.score * r.weight * Math.max(0.05, r.confidence), 0) / totalWeight;
 
-  // Vote majoritaire (indicateur secondaire, affiche en mode expert).
+  // Majority vote (secondary indicator, shown in expert mode).
   const votes = { ai: 0, human: 0, neutral: 0 };
   for (const r of usable) {
     if (r.score >= 0.62) votes.ai += 1;
@@ -158,15 +191,16 @@ export function aggregateEnsemble(results, extraction, settings = {}) {
     else votes.neutral += 1;
   }
 
-  // Accord entre detecteurs : un desaccord fort doit reduire l'ecart a 50 %.
+  // Agreement between detectors: strong disagreement must shrink the distance
+  // from 50 %.
   const spread = stdev(usable.map((r) => r.score));
   const agreement = clamp(1 - spread / 0.45);
 
-  // Regression vers le centre proportionnelle au desaccord.
+  // Regression towards the centre, proportional to the disagreement.
   const shrink = 0.55 + 0.45 * agreement;
   let score = 0.5 + (weighted - 0.5) * shrink;
 
-  // Penalite langue non supportee : les ressources embarquees sont fr/en.
+  // Unsupported-language penalty: the bundled resources are fr/en only.
   const languageOk = extraction.language.supported;
   if (!languageOk) score = 0.5 + (score - 0.5) * 0.6;
 
@@ -180,34 +214,36 @@ export function aggregateEnsemble(results, extraction, settings = {}) {
   const confidence = clamp(agreement * lengthFactor * remoteBonus * (languageOk ? 1 : 0.7));
 
   const percent = clamp(score) * 100;
+  const band = bandFor(percent, thresholds);
 
   return {
     score: percent,
     rawScore: weighted * 100,
     confidence,
-    confidenceLabel: confidenceLabel(confidence),
+    confidenceKey: confidenceKeyFor(confidence),
     agreement,
     spread,
     votes,
-    verdict: verdictFor(percent, confidence, thresholds),
-    band: bandFor(percent, thresholds),
+    band,
     thresholds,
+    verdictKey: verdictKeyFor(band),
+    lowConfidence: confidence < 0.45,
     reasons: buildReasons(usable, extraction, percent, agreement, languageOk, thresholds),
     detectorCount: usable.length,
   };
 }
 
-export function confidenceLabel(confidence) {
-  if (confidence >= 0.72) return 'elevee';
-  if (confidence >= 0.48) return 'moyenne';
-  if (confidence >= 0.25) return 'faible';
-  return 'tres faible';
+export function confidenceKeyFor(confidence) {
+  if (confidence >= 0.72) return 'confidence.high';
+  if (confidence >= 0.48) return 'confidence.medium';
+  if (confidence >= 0.25) return 'confidence.low';
+  return 'confidence.veryLow';
 }
 
 /**
- * Derive l'echelle complete depuis le seuil d'alerte choisi.
- * Le seuil par defaut (85 %) reproduit exactement AI_THRESHOLDS ; l'abaisser
- * comprime proportionnellement les bandes basses, sans jamais les inverser.
+ * Derive the full scale from the chosen alert threshold.
+ * The default (85 %) reproduces AI_THRESHOLDS exactly; lowering it compresses
+ * the lower bands proportionally, without ever inverting them.
  */
 export function resolveThresholds(alertThreshold) {
   const strong = Number.isFinite(Number(alertThreshold))
@@ -230,63 +266,63 @@ export function bandFor(percent, thresholds = AI_THRESHOLDS) {
   return 'strong-ai';
 }
 
-function verdictFor(percent, confidence, thresholds) {
-  const band = bandFor(percent, thresholds);
-  const suffix = confidence < 0.45 ? ' — confiance faible, resultat a ne pas exploiter seul.' : '';
+function verdictKeyFor(band) {
   switch (band) {
-    case 'human':
-      return `Signature compatible avec une redaction humaine.${suffix}`;
-    case 'uncertain':
-      return `Indetermine : les signaux ne penchent pas nettement.${suffix}`;
-    case 'mixed':
-      return `Signaux mixtes : possible assistance par IA, ou redaction humaine tres formatee.${suffix}`;
-    case 'likely-ai':
-      return `Probablement genere ou fortement assiste par une IA.${suffix}`;
-    default:
-      return `Signature fortement compatible avec un texte genere par IA.${suffix}`;
+    case 'human': return 'verdict.human';
+    case 'uncertain': return 'verdict.uncertain';
+    case 'mixed': return 'verdict.mixed';
+    case 'likely-ai': return 'verdict.likelyAi';
+    default: return 'verdict.strongAi';
   }
 }
 
-/** Explique le score en langage clair, en s'appuyant sur les indices les plus marquants. */
+/**
+ * Explain the score in plain language, leaning on the most telling indicators.
+ * Returns translation keys and parameters, resolved by the render layer.
+ */
 function buildReasons(results, extraction, percent, agreement, languageOk, thresholds) {
   const reasons = [];
   const sorted = [...results].sort((a, b) => Math.abs(b.score - 0.5) - Math.abs(a.score - 0.5));
 
   for (const r of sorted.slice(0, 4)) {
-    const direction = r.score > 0.5 ? 'vers l\'IA' : 'vers l\'humain';
     const top = r.evidence?.find((e) => Math.abs(e.score - 0.5) > 0.18) ?? r.evidence?.[0];
-    reasons.push(`${r.label} : ${(r.score * 100).toFixed(0)} % ${direction}${top ? ` (${top.label} = ${top.value})` : ''}.`);
+    reasons.push({
+      key: 'reasons.detector',
+      params: {
+        label: { key: r.labelKey },
+        percent: (r.score * 100).toFixed(0),
+        direction: { key: r.score > 0.5 ? 'reasons.directionAi' : 'reasons.directionHuman' },
+        evidence: top
+          ? { key: 'reasons.evidenceSuffix', params: { label: { key: top.labelKey }, value: top.value } }
+          : '',
+      },
+    });
   }
 
-  if (agreement < 0.55) {
-    reasons.push('Les detecteurs sont en desaccord marque : le score a ete ramene vers 50 % par prudence.');
-  }
-  if (!languageOk) {
-    reasons.push('La langue du texte n\'est ni le francais ni l\'anglais : les ressources linguistiques embarquees ne s\'appliquent pas, la fiabilite est fortement reduite.');
-  }
+  if (agreement < 0.55) reasons.push({ key: 'reasons.disagreement' });
+  if (!languageOk) reasons.push({ key: 'reasons.unsupportedLanguage' });
   if (extraction.doc.wordCount < 300) {
-    reasons.push(`Texte court (${extraction.doc.wordCount} mots) : la variance des metriques est elevee, le score est indicatif.`);
+    reasons.push({ key: 'reasons.shortText', params: { words: extraction.doc.wordCount } });
   }
   if (percent >= thresholds.uncertain && percent < thresholds.strong) {
-    reasons.push('Zone intermediaire : c\'est precisement la plage ou les detecteurs se trompent le plus, notamment sur les textes edites ou paraphrases.');
+    reasons.push({ key: 'reasons.intermediateZone' });
   }
 
-  // Garde-fou de registre. Les signaux exploites (regularite du rythme,
-  // uniformite stylometrique, densite de connecteurs) correlent fortement avec
-  // le caractere formel d'un texte, pas seulement avec son origine. Sur un
-  // texte tres formel, le risque de faux positif augmente reellement : on le
-  // dit, plutot que de laisser le score parler seul.
+  // Register safeguard. The signals we exploit (rhythm regularity, stylometric
+  // uniformity, connective density) correlate strongly with how FORMAL a text
+  // is, not only with its origin. On very formal text the false-positive risk
+  // genuinely rises: we say so, rather than letting the score speak alone.
   const formality = formalityIndex(extraction.features);
   if (formality > 0.62 && percent >= thresholds.uncertain) {
-    reasons.push(`Registre tres formel detecte (indice ${formality.toFixed(2)}) : mots longs, phrases amples, peu de marques personnelles. Ce profil fait monter le score independamment de l'origine du texte — c'est le cas ou les faux positifs sont les plus frequents, notamment pour les locuteurs non natifs et les ecrits academiques ou administratifs.`);
+    reasons.push({ key: 'reasons.formalRegister', params: { index: formality.toFixed(2) } });
   }
 
   return reasons;
 }
 
 /**
- * Indice de formalite dans [0,1]. Sert uniquement d'avertissement : il n'entre
- * pas dans le calcul du score, il en qualifie la fiabilite.
+ * Formality index in [0,1]. Used purely as a warning: it does not enter the
+ * score computation, it qualifies the score's reliability.
  */
 export function formalityIndex(features) {
   const longWords = features['lex.longWordRatio'] ?? 0;
@@ -305,7 +341,7 @@ export function formalityIndex(features) {
   return signals.reduce((a, b) => a + b, 0) / signals.length;
 }
 
-/** Ajuste dynamiquement un poids (utilise par l'interface avancee). */
+/** Adjust a weight at runtime (used by the advanced interface). */
 export function setDetectorWeight(id, weight) {
   DETECTOR_WEIGHTS[id] = weight;
 }

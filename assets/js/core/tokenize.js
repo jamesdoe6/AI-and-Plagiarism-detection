@@ -1,12 +1,12 @@
 /**
- * Segmentation du texte : mots, phrases, paragraphes, syllabes.
- * Concu pour le francais et l'anglais (les deux langues visees par les
- * ressources embarquees), avec une degradation propre sur les autres langues.
+ * Text segmentation: words, sentences, paragraphs, syllables.
+ * Built for French and English (the two languages the bundled resources cover),
+ * degrading cleanly on any other language.
  */
 
 const WORD_RE = /[\p{L}\p{N}][\p{L}\p{N}'’\-]*/gu;
 
-/** Abreviations qui ne terminent pas une phrase. */
+/** Abbreviations that do not end a sentence. */
 const ABBREVIATIONS = new Set([
   'm', 'mm', 'mme', 'mlle', 'dr', 'pr', 'st', 'ste', 'av', 'ed', 'cf', 'etc',
   'ex', 'fig', 'no', 'nos', 'vol', 'p', 'pp', 'art', 'ch', 'al', 'env',
@@ -24,7 +24,7 @@ export function normalizeText(raw) {
     .trim();
 }
 
-/** Version agressive pour les comparaisons de similarite. */
+/** Aggressive variant, used for similarity comparisons. */
 export function canonicalize(raw) {
   return String(raw ?? '')
     .toLowerCase()
@@ -47,8 +47,8 @@ export function lowerWords(text) {
 }
 
 /**
- * Decoupe en phrases avec les offsets d'origine (necessaire pour surligner
- * les passages plagies dans le texte source).
+ * Split into sentences, keeping the original offsets (needed to highlight
+ * plagiarised passages within the source text).
  */
 export function sentences(text) {
   const out = [];
@@ -66,7 +66,7 @@ export function sentences(text) {
       continue;
     }
 
-    // Suite de ponctuation finale (?!, ...)
+    // Run of terminal punctuation (?!, ...)
     let end = i;
     while (end + 1 < src.length && '.!?…'.includes(src[end + 1])) end += 1;
 
@@ -105,14 +105,14 @@ export function lines(text) {
   return String(text).split('\n');
 }
 
-/** N-grammes de mots. */
+/** Word n-grams. */
 export function ngrams(tokens, n) {
   const out = [];
   for (let i = 0; i + n <= tokens.length; i += 1) out.push(tokens.slice(i, i + n).join(' '));
   return out;
 }
 
-/** N-grammes de caracteres. */
+/** Character n-grams. */
 export function charNgrams(text, n) {
   const out = [];
   const s = text;
@@ -123,7 +123,7 @@ export function charNgrams(text, n) {
 const VOWELS_FR = 'aeiouyàâäéèêëîïôöùûüœ';
 const VOWELS_EN = 'aeiouy';
 
-/** Estimation du nombre de syllabes (approximation suffisante pour la lisibilite). */
+/** Syllable count estimate (good enough for readability indices). */
 export function syllables(word, lang = 'en') {
   const w = word.toLowerCase().replace(/[^a-zà-ÿœ]/g, '');
   if (!w) return 0;
@@ -140,7 +140,7 @@ export function syllables(word, lang = 'en') {
   return Math.max(1, count);
 }
 
-/** Statistiques de base reutilisees partout : evite de re-tokeniser 40 fois. */
+/** Shared base statistics: avoids re-tokenising the same text forty times. */
 export function buildDocument(rawText) {
   const text = normalizeText(rawText);
   const sents = sentences(text);

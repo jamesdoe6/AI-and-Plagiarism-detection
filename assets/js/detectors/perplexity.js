@@ -1,33 +1,34 @@
 /**
- * Detecteur 1 — Previsibilite / proxy de perplexite.
+ * Detector 1 — Predictability / perplexity proxy.
  *
- * Hypothese : un LLM echantillonne pres du mode de sa distribution, ce qui
- * produit une suite de mots globalement peu surprenante et, surtout, dont la
- * surprise varie peu.
+ * Hypothesis: an LLM samples near the mode of its distribution, producing a
+ * word sequence that is globally unsurprising and, above all, whose surprisal
+ * varies little.
  *
- * Point de calibration important : la surprise *brute* confond "texte
- * previsible" et "texte savant" (un mot absent de la table de frequence recoit
- * une surprise elevee du seul fait de sa longueur). On s'appuie donc en
- * priorite sur :
- *   - la surprise restreinte au vocabulaire connu (`ent.ivSurprisalMean`), qui
- *     mesure le choix entre mots frequents et moins frequents a registre
- *     constant ;
- *   - la *dispersion* de la surprise, qui est le signal reellement
- *     discriminant (equivalent lexical de la burstiness, dans l'esprit des
- *     approches type DetectGPT) ;
- *   - l'auto-predictibilite n-gramme.
+ * Important calibration note: RAW surprisal conflates "predictable text" with
+ * "learned text" (a word absent from the frequency table gets high surprisal
+ * purely because it is long). We therefore rely primarily on:
+ *   - surprisal restricted to known vocabulary (`ent.ivSurprisalMean`), which
+ *     measures the choice between frequent and less-frequent words at constant
+ *     register;
+ *   - the DISPERSION of surprisal, which is the genuinely discriminative
+ *     signal (the lexical counterpart of burstiness, in the spirit of
+ *     DetectGPT-style approaches);
+ *   - n-gram self-predictability.
  *
- * Limite majeure : un texte humain simple, scolaire ou traduit presente lui
- * aussi une faible perplexite. C'est la premiere source documentee de faux
- * positifs sur les locuteurs non natifs.
+ * Main limitation: simple, school-level or translated human text also shows low
+ * perplexity. This is the primary documented source of false positives for
+ * non-native speakers.
  */
 
-import { combine, evidence, lengthConfidence, ramp, get } from './base.js';
+import { combine, evidence, lengthConfidence, ramp, get, num, pct } from './base.js';
+
+const K = 'detectors.perplexity';
 
 export const perplexityDetector = {
   id: 'perplexity',
-  label: 'Previsibilite (proxy de perplexite)',
-  description: 'Surprise lexicale et sa dispersion, estimees par loi de Zipf et modele n-gramme auto-appris.',
+  labelKey: `${K}.label`,
+  descriptionKey: `${K}.description`,
 
   run({ features, doc }) {
     const ivMean = get(features, 'ent.ivSurprisalMean', 9.5);
@@ -38,15 +39,15 @@ export const perplexityDetector = {
     const sentCv = get(features, 'ent.sentenceSurprisalCv');
     const sentSd = get(features, 'ent.sentenceSurprisalSd');
 
-    // Signal dominant : la densite informationnelle varie-t-elle d'une phrase a
-    // l'autre ? Un humain alterne phrases denses et phrases creuses ; un modele
-    // maintient un debit d'information quasi constant. C'est la transposition
-    // lexicale de la burstiness, et c'est le seul signal de cette famille qui
-    // separe nettement nos echantillons de reference.
+    // Dominant signal: does information density vary from one sentence to the
+    // next? A human alternates dense and sparse sentences; a model holds a
+    // near-constant information rate. This is the lexical transposition of
+    // burstiness, and the only signal in this family that cleanly separates
+    // our reference samples.
     const s1 = ramp(sentCv, 0.155, 0.060);
     const s2 = ramp(sentSd, 1.55, 0.75);
-    // Signaux secondaires, conserves pour l'interpretabilite mais faiblement
-    // ponderes : ils dependent trop du registre pour trancher seuls.
+    // Secondary signals, kept for interpretability but weighted low: they
+    // depend too much on register to decide on their own.
     const s3 = ramp(cvSurprisal, 0.42, 0.26);
     const s4 = ramp(deltaMean, 6.5, 3.4);
     const s5 = ramp(selfPred, 0.860, 0.905);
@@ -65,18 +66,15 @@ export const perplexityDetector = {
 
     return {
       id: this.id,
-      label: this.label,
+      labelKey: this.labelKey,
       score,
       confidence: lengthConfidence(doc.wordCount) * 0.95,
       evidence: [
-        evidence('Variabilite de la densite informationnelle', sentCv.toFixed(3), s1,
-          'Ecart de surprise moyenne d\'une phrase a l\'autre. En dessous de 0,08, le debit d\'information est anormalement constant.'),
-        evidence('Ecart-type entre phrases', sentSd.toFixed(3), s2),
-        evidence('Surprise moyenne (vocabulaire connu)', `${ivMean.toFixed(2)} bits`, s6,
-          'Signal secondaire : depend fortement du registre, il ne tranche pas seul.'),
-        evidence('Dispersion globale de la surprise', cvSurprisal.toFixed(3), s3),
-        evidence('Mots hors vocabulaire courant', `${(oov * 100).toFixed(1)} %`, s7,
-          'Lexique specialise ou idiosyncratique.'),
+        evidence(`${K}.ev1`, num(sentCv), s1, `${K}.ev1Hint`),
+        evidence(`${K}.ev2`, num(sentSd), s2),
+        evidence(`${K}.ev3`, `${ivMean.toFixed(2)} bits`, s6, `${K}.ev3Hint`),
+        evidence(`${K}.ev4`, num(cvSurprisal), s3),
+        evidence(`${K}.ev5`, pct(oov), s7, `${K}.ev5Hint`),
       ],
     };
   },

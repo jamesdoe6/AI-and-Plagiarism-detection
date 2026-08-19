@@ -1,18 +1,18 @@
 /**
- * Assemblage du vecteur de caracteristiques complet.
+ * Assembly of the complete feature vector.
  *
- * Le vecteur agrege toutes les familles de metriques. En pratique il contient
- * entre 800 et 1000 dimensions selon la langue detectee :
- *   - lexicales           ~60
- *   - syntaxiques         ~55
- *   - ponctuation / char  ~85
- *   - information         ~35
+ * The vector aggregates every metric family. In practice it holds between 730
+ * and 950 dimensions depending on the detected language:
+ *   - lexical             ~57
+ *   - syntactic           ~60
+ *   - punctuation / chars ~93
+ *   - information         ~40
  *   - repetition          ~30
- *   - lisibilite          ~20
- *   - stylometrie         ~250 a 380 (une par mot-outil)
- *   - marqueurs           ~250 (une par expression du lexique)
+ *   - readability         ~17
+ *   - stylometry          ~240 to 380 (one per function word)
+ *   - markers             ~250 (one per lexicon entry)
  *
- * Les detecteurs consomment ce vecteur ; ils ne re-tokenisent jamais.
+ * Detectors consume this vector; they never re-tokenise.
  */
 
 import { buildDocument } from '../core/tokenize.js';
@@ -26,23 +26,25 @@ import { readabilityFeatures } from './readability.js';
 import { stylometryFeatures } from './stylometry.js';
 import { markerFeatures } from './markers.js';
 
+/** Display order and translation key of each metric family. */
 export const FEATURE_GROUPS = [
-  { id: 'lex', label: 'Lexique et richesse' },
-  { id: 'syn', label: 'Syntaxe et burstiness' },
-  { id: 'punc', label: 'Ponctuation' },
-  { id: 'char', label: 'Distribution des caracteres' },
-  { id: 'ent', label: 'Information et perplexite' },
-  { id: 'rep', label: 'Repetition et redondance' },
-  { id: 'read', label: 'Lisibilite' },
-  { id: 'sty', label: 'Stylometrie (agregats)' },
-  { id: 'fw', label: 'Stylometrie (mots-outils)' },
-  { id: 'pos', label: 'Categories grammaticales (proxy)' },
-  { id: 'mk', label: 'Marqueurs lexicaux' },
+  { id: 'lex', labelKey: 'groups.lex' },
+  { id: 'syn', labelKey: 'groups.syn' },
+  { id: 'punc', labelKey: 'groups.punc' },
+  { id: 'char', labelKey: 'groups.char' },
+  { id: 'ent', labelKey: 'groups.ent' },
+  { id: 'rep', labelKey: 'groups.rep' },
+  { id: 'read', labelKey: 'groups.read' },
+  { id: 'sty', labelKey: 'groups.sty' },
+  { id: 'fw', labelKey: 'groups.fw' },
+  { id: 'pos', labelKey: 'groups.pos' },
+  { id: 'mk', labelKey: 'groups.mk' },
 ];
 
 /**
  * @param {string} rawText
- * @param {(step:string, ratio:number)=>void} [onProgress]
+ * @param {(stepKey:string, ratio:number)=>void} [onProgress] receives a
+ *   translation key, never a display string.
  */
 export async function extractFeatures(rawText, onProgress = () => {}) {
   const doc = buildDocument(rawText);
@@ -52,27 +54,27 @@ export async function extractFeatures(rawText, onProgress = () => {}) {
   const features = {};
   const detail = {};
   const steps = [
-    ['Analyse lexicale', () => lexicalFeatures(doc)],
-    ['Analyse syntaxique', () => syntacticFeatures(doc)],
-    ['Ponctuation et typographie', () => punctuationFeatures(doc)],
-    ['Entropie et perplexite', () => entropyFeatures(doc, lang)],
-    ['Repetitions', () => repetitionFeatures(doc)],
-    ['Lisibilite', () => readabilityFeatures(doc, lang)],
-    ['Stylometrie', () => stylometryFeatures(doc, lang)],
-    ['Marqueurs lexicaux', () => markerFeatures(doc, lang)],
+    ['steps.lexical', () => lexicalFeatures(doc)],
+    ['steps.syntactic', () => syntacticFeatures(doc)],
+    ['steps.punctuation', () => punctuationFeatures(doc)],
+    ['steps.entropy', () => entropyFeatures(doc, lang)],
+    ['steps.repetition', () => repetitionFeatures(doc)],
+    ['steps.readability', () => readabilityFeatures(doc, lang)],
+    ['steps.stylometry', () => stylometryFeatures(doc, lang)],
+    ['steps.markers', () => markerFeatures(doc, lang)],
   ];
 
   for (let i = 0; i < steps.length; i += 1) {
-    const [label, run] = steps[i];
-    onProgress(label, (i + 1) / (steps.length + 1));
+    const [stepKey, run] = steps[i];
+    onProgress(stepKey, (i + 1) / (steps.length + 1));
     const result = run();
     Object.assign(features, result.features);
-    detail[label] = result;
-    // Laisse l'UI respirer entre deux familles de metriques.
+    detail[stepKey] = result;
+    // Let the UI breathe between two metric families.
     await new Promise((resolve) => setTimeout(resolve, 0));
   }
 
-  onProgress('Compression', 1);
+  onProgress('steps.compression', 1);
   const compression = await compressionProfile(doc.text);
   if (compression) {
     features['rep.gzipRatio'] = compression.ratio;
@@ -89,11 +91,11 @@ export async function extractFeatures(rawText, onProgress = () => {}) {
     features,
     detail,
     featureCount: Object.keys(features).length,
-    markerHits: detail['Marqueurs lexicaux']?.hits ?? [],
+    markerHits: detail['steps.markers']?.hits ?? [],
   };
 }
 
-/** Regroupe les metriques par famille pour l'affichage en mode expert. */
+/** Group metrics by family for the expert-mode display. */
 export function groupFeatures(features) {
   const groups = new Map();
   for (const [key, value] of Object.entries(features)) {

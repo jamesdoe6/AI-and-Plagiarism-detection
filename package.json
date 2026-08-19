@@ -1,7 +1,7 @@
 {
   "name": "ai-plagiarism-detector",
   "version": "1.0.0",
-  "description": "Detecteur d'IA et de plagiat 100% cote client (glass skin UI).",
+  "description": "AI-text and plagiarism detector running entirely client-side (Liquid Glass UI, EN/FR).",
   "type": "module",
   "private": true,
   "scripts": {
@@ -9,5 +9,14 @@
     "serve": "python3 -m http.server 4173",
     "test": "node tests/run.js"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "ai-detection",
+    "plagiarism",
+    "stylometry",
+    "burstiness",
+    "client-side",
+    "no-dependencies"
+  ],
+  "homepage": "https://github.com/jamesdoe6/AI-and-Plagiarism-detection"
 }

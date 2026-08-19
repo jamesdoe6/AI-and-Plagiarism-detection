@@ -1,10 +1,10 @@
 /**
- * Metriques syntaxiques et structurelles de phrase.
+ * Sentence-level syntactic and structural metrics.
  *
- * C'est ici que se joue la "burstiness" : un humain alterne phrases courtes et
- * longues de facon irreguliere, un LLM tend vers une longueur moyenne stable.
- * On mesure donc non seulement la moyenne mais surtout la dispersion, l'ecart
- * entre phrases voisines et la forme de la distribution.
+ * This is where "burstiness" plays out: a human alternates short and long
+ * sentences irregularly, an LLM converges on a stable mean length. We therefore
+ * measure not only the mean but above all the dispersion, the gap between
+ * neighbouring sentences, and the shape of the distribution.
  */
 
 import { mean, stdev, cv, skewness, kurtosis, median, quantile, entropy, counter } from '../core/stats.js';
@@ -24,7 +24,7 @@ export function syntacticFeatures(doc) {
   f['syn.sentenceCount'] = sents.length;
   f['syn.sentLenMean'] = mean(lengths);
   f['syn.sentLenSd'] = stdev(lengths);
-  f['syn.sentLenCv'] = cv(lengths);                 // metrique centrale de burstiness
+  f['syn.sentLenCv'] = cv(lengths);                 // the central burstiness metric
   f['syn.sentLenSkew'] = skewness(lengths);
   f['syn.sentLenKurt'] = kurtosis(lengths);
   f['syn.sentLenMedian'] = median(lengths);
@@ -38,7 +38,7 @@ export function syntacticFeatures(doc) {
   f['syn.charLenMean'] = mean(charLengths);
   f['syn.charLenCv'] = cv(charLengths);
 
-  // Burstiness locale : ecart moyen entre phrases consecutives.
+  // Local burstiness: mean gap between consecutive sentences.
   const deltas = [];
   for (let i = 1; i < lengths.length; i += 1) deltas.push(Math.abs(lengths[i] - lengths[i - 1]));
   f['syn.adjacentDeltaMean'] = mean(deltas);
@@ -50,7 +50,7 @@ export function syntacticFeatures(doc) {
   f['syn.midSentRatio'] = lengths.filter((l) => l > 12 && l < 26).length / lengths.length;
   f['syn.uniformSentRatio'] = uniformRunRatio(lengths, 0.2);
 
-  // Histogramme des longueurs de phrase : 13 metriques.
+  // Sentence-length histogram: 13 metrics.
   const bins = new Array(SENT_BINS.length).fill(0);
   for (const l of lengths) {
     const idx = SENT_BINS.findIndex((edge) => l <= edge);
@@ -58,7 +58,7 @@ export function syntacticFeatures(doc) {
   }
   bins.forEach((count, i) => { f[`syn.sentBin${i}`] = count / lengths.length; });
 
-  // Complexite intra-phrase : virgules, subordonnees, incises.
+  // Intra-sentence complexity: commas, subordination, parentheticals.
   const commas = sents.map((s) => (s.text.match(/,/g) ?? []).length);
   f['syn.commasPerSentence'] = mean(commas);
   f['syn.commasPerSentenceSd'] = stdev(commas);
@@ -67,13 +67,13 @@ export function syntacticFeatures(doc) {
   f['syn.subordinationRate'] = mean(sents.map((s) => (s.text.match(/\b(that|which|who|because|although|while|dont|qui|que|dont|parce|bien que|alors que|lorsque)\b/gi) ?? []).length));
   f['syn.coordinationRate'] = mean(sents.map((s) => (s.text.match(/\b(and|or|but|et|ou|mais|donc)\b/gi) ?? []).length));
 
-  // Types de phrases.
+  // Sentence types.
   f['syn.questionRatio'] = sents.filter((s) => /\?\s*$/.test(s.text)).length / sents.length;
   f['syn.exclamationRatio'] = sents.filter((s) => /!\s*$/.test(s.text)).length / sents.length;
   f['syn.declarativeRatio'] = sents.filter((s) => /\.\s*$/.test(s.text)).length / sents.length;
   f['syn.fragmentRatio'] = sents.filter((s) => words(s.text).length <= 4).length / sents.length;
 
-  // Debuts de phrase : la diversite des ouvertures distingue fortement humain / LLM.
+  // Sentence openings: their diversity separates human from LLM sharply.
   const openers = sents.map((s) => (words(s.text)[0] ?? '').toLowerCase());
   const openerFreq = counter(openers);
   f['syn.openerDiversity'] = openerFreq.size / sents.length;
@@ -85,7 +85,7 @@ export function syntacticFeatures(doc) {
   f['syn.determinerOpenerRatio'] = openers.filter((w) => ['the', 'a', 'an', 'this', 'these', 'le', 'la', 'les', 'un', 'une', 'ce', 'cette', 'ces'].includes(w)).length / sents.length;
   f['syn.pronounOpenerRatio'] = openers.filter((w) => ['i', 'we', 'you', 'he', 'she', 'they', 'it', 'je', 'nous', 'vous', 'il', 'elle', 'ils', 'elles', 'on'].includes(w)).length / sents.length;
 
-  // Paragraphes.
+  // Paragraphs.
   const paraLengths = doc.paragraphs.map((p) => words(p).length);
   const paraSentCounts = doc.paragraphs.map((p) => Math.max(1, (p.match(/[.!?…]+/g) ?? []).length));
   f['syn.paragraphCount'] = doc.paragraphs.length;
@@ -99,9 +99,9 @@ export function syntacticFeatures(doc) {
 }
 
 /**
- * Coefficient de burstiness de Goh & Barabasi : (sigma - mu) / (sigma + mu).
- * Proche de -1 : ultra regulier (signature machine). Proche de 0 ou positif :
- * irregularite typiquement humaine.
+ * Goh & Barabási burstiness coefficient: (sigma - mu) / (sigma + mu).
+ * Close to -1: ultra-regular (machine signature). Near 0 or positive: the
+ * irregularity typical of human writing.
  */
 export function burstinessCoefficient(values) {
   const m = mean(values);
@@ -110,7 +110,7 @@ export function burstinessCoefficient(values) {
   return (s - m) / (s + m);
 }
 
-/** Proportion de phrases dont la longueur est proche de la precedente. */
+/** Share of sentences whose length is close to the preceding one. */
 function uniformRunRatio(lengths, tolerance = 0.2) {
   if (lengths.length < 2) return 0;
   let count = 0;

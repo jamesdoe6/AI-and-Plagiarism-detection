@@ -1,15 +1,15 @@
 /**
- * Listes de mots ordonnees par frequence decroissante (corpus generalistes).
+ * Word lists ordered by decreasing frequency (general-purpose corpora).
  *
- * On ne stocke pas les frequences absolues : la loi de Zipf permet de
- * reconstruire une probabilite exploitable a partir du seul rang
- *   p(rang) ~= 1 / (rang^s * H_N(s))
- * ce qui suffit largement pour un proxy de perplexite (on cherche une
- * *tendance*, pas une valeur absolue de vraisemblance).
+ * Absolute frequencies are not stored: Zipf's law reconstructs a usable
+ * probability from the rank alone,
+ *   p(rank) ~= 1 / (rank^s * H_N(s))
+ * which is ample for a perplexity proxy (we are after a TREND, not an absolute
+ * likelihood).
  *
- * Les mots hors liste (OOV) recoivent une surprise plancher dependant de leur
- * longueur et de leur composition : c'est precisement le vocabulaire rare qui
- * fait grimper la perplexite d'un texte humain.
+ * Out-of-vocabulary words receive a floor surprisal derived from their length
+ * and composition: rare vocabulary is precisely what drives up the perplexity of
+ * human text.
  */
 
 export const TOP_WORDS_EN = `the be to of and a in that have i it for not on with he as you do at
@@ -245,39 +245,39 @@ export function rankMap(lang) {
 const ZIPF_S = 1.07;
 
 /**
- * Surprise (-log2 p) d'un mot selon le modele Zipf, avec plancher OOV.
- * Un texte tres previsible (beaucoup de mots ultra-frequents, peu de rares)
- * produit une surprise moyenne basse : c'est la signature typique d'un LLM
- * qui echantillonne pres du mode de la distribution.
+ * Surprisal (-log2 p) of a word under the Zipf model, with an OOV floor.
+ * Highly predictable text (many ultra-frequent words, few rare ones) yields a low
+ * mean surprisal: the typical signature of an LLM sampling near the mode of its
+ * distribution.
  */
 export function wordSurprisal(word, lang = 'en', vocabSize = 60000) {
   const ranks = rankMap(lang);
   const rank = ranks.get(word);
   if (rank) {
-    // Normalisation approximative de la constante d'harmonisation.
+    // Approximate normalisation of the harmonic constant.
     const h = 10.5; // ~ H_{60000}(1.07)
     const p = 1 / (rank ** ZIPF_S * h);
     return -Math.log2(Math.max(p, 1e-9));
   }
-  // OOV : rang estime a partir de la longueur du mot (les mots longs sont rares).
+  // OOV: rank estimated from word length (long words are rare).
   const estimatedRank = Math.min(vocabSize, 800 + word.length ** 3.1);
   const h = 10.5;
   const p = 1 / (estimatedRank ** ZIPF_S * h);
   return -Math.log2(Math.max(p, 1e-9));
 }
 
-/** Le mot figure-t-il dans la liste de frequence de la langue ? */
+/** Is the word present in the language's frequency list? */
 export function isInVocab(word, lang = 'en') {
   return rankMap(lang).has(word);
 }
 
 /**
- * Surprise restreinte au vocabulaire connu.
- * Motivation : la surprise brute confond "texte previsible" et "texte savant",
- * puisqu'un mot absent de la liste recoit une surprise elevee du seul fait de
- * sa longueur. En separant les mots connus (ou l'on mesure vraiment le choix
- * entre frequent et moins frequent) du taux de mots hors vocabulaire, on
- * neutralise en grande partie l'effet de registre.
+ * Surprisal restricted to known vocabulary.
+ * Rationale: raw surprisal conflates "predictable text" with "learned text",
+ * since a word absent from the list scores high purely because it is long.
+ * Separating known words (where the choice between frequent and less-frequent
+ * words is genuinely measured) from the out-of-vocabulary rate largely
+ * neutralises the register effect.
  */
 export function inVocabSurprisal(word, lang = 'en') {
   const rank = rankMap(lang).get(word);

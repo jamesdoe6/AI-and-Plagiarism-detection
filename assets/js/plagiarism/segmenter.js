@@ -1,14 +1,14 @@
 /**
- * Segmentation du texte en passages interrogeables.
+ * Splitting the text into queryable passages.
  *
- * Strategie : fenetres glissantes de ~42 mots avec recouvrement, alignees sur
- * les frontieres de phrases quand c'est possible, afin que chaque requete
- * envoyee au moteur de recherche corresponde a une unite de sens.
+ * Strategy: overlapping sliding windows of ~42 words, aligned on sentence
+ * boundaries where possible, so that every query sent to the search engine
+ * corresponds to a unit of meaning.
  *
- * Chaque passage recoit un score de "distinctivite" : plus un passage contient
- * de mots rares et de sequences peu banales, plus il est utile a interroger.
- * Interroger « il est important de noter que » ne produit que du bruit ; c'est
- * la premiere source de faux positifs d'un detecteur de plagiat.
+ * Each passage gets a "distinctiveness" score: the more rare words and unusual
+ * sequences it contains, the more worthwhile it is to query. Searching for
+ * "it is important to note that" produces nothing but noise, and that is the
+ * primary source of false positives in a plagiarism detector.
  */
 
 import { PLAGIARISM } from '../config.js';
@@ -32,7 +32,7 @@ export function segmentText(text, options = {}) {
   const lang = detectLanguage(text).lang;
   const ranks = rankMap(lang);
 
-  // Construction de fenetres alignees sur les phrases.
+  // Build windows aligned on sentences.
   const passages = [];
   let cursor = 0;
   while (cursor < sents.length) {
@@ -60,7 +60,7 @@ export function segmentText(text, options = {}) {
       });
     }
 
-    // Avance d'au moins une phrase, en visant le pas demande.
+    // Advance by at least one sentence, aiming for the requested step.
     let advanced = 0;
     let next = cursor;
     while (next < sents.length && advanced < step) {
@@ -79,8 +79,8 @@ export function segmentText(text, options = {}) {
 }
 
 /**
- * Score de distinctivite dans [0,1].
- * Combine la rarete moyenne des mots et l'originalite des 4-grammes.
+ * Distinctiveness score in [0,1].
+ * Combines mean word rarity with the originality of 4-grams.
  */
 export function distinctiveness(text, ranks) {
   const tokens = canonicalize(text).split(' ').filter(Boolean);
@@ -96,7 +96,7 @@ export function distinctiveness(text, ranks) {
   }
   const rarity = rareScore / tokens.length;
 
-  // Entites nommees approximees : majuscules en milieu de phrase, chiffres.
+  // Named entities approximated: mid-sentence capitals, and digits.
   named = (text.match(/(?<!^)(?<![.!?]\s)\b[A-ZÀ-Þ][a-zà-ÿ]{2,}/g) ?? []).length;
   const digits = (text.match(/\b\d[\d.,%-]*\b/g) ?? []).length;
 
@@ -110,9 +110,9 @@ export function distinctiveness(text, ranks) {
 }
 
 /**
- * Construit une requete exacte pour le moteur de recherche.
- * On conserve une sous-chaine continue de 8 a 12 mots — assez longue pour etre
- * discriminante, assez courte pour que les moteurs la traitent correctement.
+ * Build an exact-phrase query for the search engine.
+ * We keep a continuous 8-to-12-word substring — long enough to discriminate,
+ * short enough for engines to handle it properly.
  */
 export function buildQuery(text, maxWords = 11) {
   const cleaned = text
@@ -122,8 +122,8 @@ export function buildQuery(text, maxWords = 11) {
   const tokens = cleaned.split(' ');
   if (tokens.length <= maxWords) return `"${cleaned}"`;
 
-  // Fenetre la plus "dense" en mots longs : evite de tomber sur une suite de
-  // mots-outils qui ramenerait des millions de resultats non pertinents.
+  // The window densest in long words: avoids landing on a run of function
+  // words that would return millions of irrelevant results.
   let bestStart = 0;
   let bestScore = -1;
   for (let i = 0; i + maxWords <= tokens.length; i += 1) {
@@ -135,10 +135,10 @@ export function buildQuery(text, maxWords = 11) {
 }
 
 /**
- * Selectionne les passages a interroger dans la limite du budget de requetes.
- * On repartit les requetes sur toute la longueur du document plutot que de les
- * concentrer sur les passages les plus distinctifs, sinon un document dont
- * seule la fin est copiee passe inapercu.
+ * Select the passages to query within the query budget.
+ * Queries are spread across the document's whole length rather than concentrated
+ * on the most distinctive passages — otherwise a document where only the ending
+ * was copied would slip through unnoticed.
  */
 export function selectPassages(passages, budget) {
   if (passages.length <= budget) return [...passages];

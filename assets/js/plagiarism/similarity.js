@@ -1,16 +1,16 @@
 /**
- * Mesures de similarite entre deux textes.
+ * Similarity measures between two texts.
  *
- * Aucune mesure isolee ne convient :
- *   - Jaccard sur shingles detecte la copie litterale mais rate la paraphrase ;
- *   - le cosinus sur sacs de mots ponderes detecte la paraphrase mais surestime
- *     la similarite de deux textes du meme domaine ;
- *   - le containment repere qu'un extrait court est inclus dans un texte long ;
- *   - la plus longue sous-sequence commune reste robuste aux insertions.
+ * No single measure will do:
+ *   - Jaccard over shingles catches verbatim copying but misses paraphrase;
+ *   - weighted bag-of-words cosine catches paraphrase but over-scores two texts
+ *     from the same domain;
+ *   - containment spots a short extract embedded in a long text;
+ *   - longest common subsequence stays robust to insertions.
  *
- * On les combine, et on renvoie aussi le meilleur extrait aligne pour que
- * l'utilisateur puisse *verifier lui-meme* — c'est le point critique : l'outil
- * signale, l'humain juge.
+ * We combine them, and also return the best aligned excerpt so the user can
+ * CHECK FOR THEMSELVES — that is the critical point: the tool flags, the human
+ * judges.
  */
 
 import { canonicalize, ngrams } from '../core/tokenize.js';
@@ -29,7 +29,7 @@ export function tokensOf(text) {
   return canonicalize(text).split(' ').filter(Boolean);
 }
 
-/** Vecteur tf pondere par la longueur du mot (proxy d'IDF sans corpus). */
+/** tf vector weighted by word length (an IDF proxy with no corpus). */
 function weightedVector(tokens) {
   const freq = counter(tokens);
   const vector = new Map();
@@ -41,16 +41,16 @@ function weightedVector(tokens) {
 }
 
 /**
- * Similarite composite entre un passage source et un texte candidat.
+ * Composite similarity between a source passage and a candidate text.
  * @returns {{score:number, jaccard:number, containment:number, cosine:number,
  *            lcs:number, exact:boolean, matchedText:string|null}}
  */
 /**
- * Mots de contenu : on retire les 150 mots les plus frequents de la langue.
- * Deux textes sans rapport partagent beaucoup de mots-outils ; les aligner
- * gonfle artificiellement toute mesure de similarite. En raisonnant sur les
- * seuls mots de contenu, une paraphrase reste detectable alors que deux textes
- * du meme registre mais sans lien retombent pres de zero.
+ * Content words: the 150 most frequent words of the language are removed.
+ * Two unrelated texts share a great many function words; aligning them inflates
+ * any similarity measure artificially. Reasoning over content words alone keeps
+ * paraphrase detectable while two same-register but unrelated texts fall back
+ * near zero.
  */
 function contentTokens(tokens, lang) {
   const ranks = rankMap(lang);
@@ -61,7 +61,7 @@ function contentTokens(tokens, lang) {
 }
 
 /**
- * Similarite composite entre un passage source et un texte candidat.
+ * Composite similarity between a source passage and a candidate text.
  * @returns {{score:number, jaccard:number, containment:number, cosine:number,
  *            lcs:number, exact:boolean, matchedText:string|null}}
  */
@@ -80,8 +80,8 @@ export function similarityBetween(source, candidate) {
   const j = jaccard(sourceShingles, candidateShingles);
   const c = containment(sourceShingles, candidateShingles);
 
-  // Shingles courts : rattrapent les reprises quasi litterales ou un mot sur
-  // dix a ete substitue — le cas le plus courant de plagiat "retouche".
+  // Short shingles: catch near-verbatim reuse where roughly one word in ten
+  // was substituted — the most common form of "touched-up" plagiarism.
   const c3 = containment(
     new Set(ngrams(sourceTokens, 3)),
     new Set(ngrams(candidateTokens, 3)),
@@ -95,16 +95,16 @@ export function similarityBetween(source, candidate) {
     ? lcsLength(sourceContent, candidateContent) / sourceContent.length
     : lcsLength(sourceTokens, candidateTokens) / sourceTokens.length;
 
-  // Copie litterale : la sous-chaine canonique source apparait telle quelle.
+  // Verbatim copy: the canonical source substring appears as-is.
   const canonicalSource = sourceTokens.join(' ');
   const canonicalCandidate = candidateTokens.join(' ');
   const exact = canonicalSource.length > 40 && canonicalCandidate.includes(canonicalSource);
 
   const { window, windowScore } = bestWindow(sourceShingles, candidate, sourceTokens.length);
 
-  // Ponderation : le containment domine (« ce passage existe-t-il ailleurs ? »).
-  // Le cosinus est volontairement minoritaire : seul, il confond "meme sujet"
-  // et "meme texte", ce qui est la principale source de faux positifs.
+  // Weighting: containment dominates ("does this passage exist elsewhere?").
+  // Cosine is deliberately a minority contributor: on its own it conflates
+  // "same topic" with "same text", the main source of false positives.
   let score = 0.28 * c + 0.15 * c3 + 0.09 * j + 0.12 * cos + 0.36 * lcs;
   if (exact) score = Math.max(score, 0.97);
   if (windowScore > score) score = (score + windowScore) / 2;
@@ -122,8 +122,8 @@ export function similarityBetween(source, candidate) {
 }
 
 /**
- * Cherche dans le candidat la fenetre qui recouvre le mieux le passage source.
- * Sert a la fois a affiner le score et a afficher un extrait comparable.
+ * Find the window within the candidate that best covers the source passage.
+ * Serves both to refine the score and to display a comparable excerpt.
  */
 export function bestWindow(sourceShingles, candidate, sourceLength) {
   const tokens = tokensOf(candidate);
@@ -143,12 +143,12 @@ export function bestWindow(sourceShingles, candidate, sourceLength) {
 
   if (best.score === 0) return { window: null, windowScore: 0 };
 
-  // Retrouve l'extrait dans le texte d'origine (non canonique) pour l'affichage.
+  // Recover the excerpt from the original (non-canonical) text for display.
   const excerpt = extractOriginal(candidate, best.start, size);
   return { window: excerpt, windowScore: best.score };
 }
 
-/** Recupere un extrait lisible du texte original a partir d'un index de token. */
+/** Recover a readable excerpt of the original text from a token index. */
 function extractOriginal(text, tokenStart, tokenCount) {
   const matches = [...text.matchAll(/[\p{L}\p{N}][\p{L}\p{N}'-]*/gu)];
   if (!matches.length) return text.slice(0, 400);
@@ -160,10 +160,10 @@ function extractOriginal(text, tokenStart, tokenCount) {
 }
 
 /**
- * Couverture globale : proportion du texte source recouverte par au moins une
- * correspondance retenue. On fusionne les intervalles pour ne pas compter deux
- * fois un passage trouve sur plusieurs sites — sinon le score depasse 100 % et
- * l'outil devient un generateur d'accusations.
+ * Global coverage: the share of the source text covered by at least one retained
+ * match. Intervals are merged so a passage found on several sites is not counted
+ * twice — otherwise the score would exceed 100 % and the tool would become an
+ * accusation generator.
  */
 export function coverageRatio(matches, totalLength) {
   if (!matches.length || !totalLength) return 0;
@@ -182,8 +182,8 @@ export function coverageRatio(matches, totalLength) {
     }
   }
 
-  // Chaque intervalle compte au prorata de sa similarite : un passage
-  // "proche a 50 %" ne represente pas 100 % de plagiat sur sa longueur.
+  // Each interval counts in proportion to its similarity: a passage that is
+  // "50 % close" does not represent 100 % plagiarism over its length.
   const covered = merged.reduce((acc, [start, end, weight]) => acc + (end - start) * weight, 0);
   return Math.min(1, covered / totalLength);
 }

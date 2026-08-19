@@ -1,22 +1,21 @@
 /**
- * Moteur de detection de plagiat.
+ * Plagiarism detection engine.
  *
- * Pipeline :
- *   1. segmentation en passages avec recouvrement ;
- *   2. selection des passages les plus distinctifs, repartis sur tout le
- *      document (un document dont seule la fin est copiee doit etre detecte) ;
- *   3. interrogation du moteur de recherche sur des requetes exactes ;
- *   4. premiere estimation de similarite sur les extraits renvoyes ;
- *   5. telechargement des pages les plus prometteuses et comparaison fine ;
- *   6. agregation par source, fusion des intervalles couverts, score global.
+ * Pipeline:
+ *   1. split into overlapping passages;
+ *   2. select the most distinctive passages, spread across the whole document
+ *      (a document where only the end was copied must still be caught);
+ *   3. query the search engine with exact-phrase queries;
+ *   4. first similarity estimate on the returned snippets;
+ *   5. download the most promising pages and compare in detail;
+ *   6. aggregate per source, merge covered intervals, compute a global score.
  *
- * Le filtrage anti-faux-positifs est aussi important que la detection :
- *   - les passages peu distinctifs ne sont pas interroges ;
- *   - une correspondance sous le seuil est ignoree ;
- *   - les correspondances trouvees sur un tres grand nombre de domaines
- *     differents sont traitees comme des expressions courantes, pas du plagiat ;
- *   - la couverture est ponderee par la similarite pour ne jamais gonfler le
- *     score global.
+ * False-positive filtering matters as much as detection itself:
+ *   - low-distinctiveness passages are never queried;
+ *   - a match below threshold is discarded;
+ *   - matches found across a very large number of different domains are treated
+ *     as common phrasing, not as plagiarism;
+ *   - coverage is weighted by similarity so the global score can never inflate.
  */
 
 import { PLAGIARISM, PLAGIARISM_THRESHOLDS } from '../config.js';
@@ -35,10 +34,10 @@ import { paragraphs } from '../core/tokenize.js';
 export async function analyzePlagiarism(text, settings, hooks = {}) {
   const { onStep = () => {}, onLog = () => {} } = hooks;
 
-  onStep('Segmentation du texte', 0.02);
+  onStep({ key: 'steps.segmenting' }, 0.02);
   const passages = segmentText(text);
   if (!passages.length) {
-    return emptyResult('Texte trop court pour etre segmente en passages exploitables.');
+    return emptyResult('plagVerdict.tooShort');
   }
 
   const budget = Math.max(1, Math.min(120, Number(settings.maxQueries) || PLAGIARISM.maxQueries));
@@ -54,7 +53,7 @@ export async function analyzePlagiarism(text, settings, hooks = {}) {
   let queriesRun = 0;
 
   if (webEnabled) {
-    onStep(`Recherche web (${selected.length} requetes)`, 0.1);
+    onStep({ key: 'steps.searching', params: { count: selected.length } }, 0.1);
 
     const searchResults = await pool(selected, async (passage, index) => {
       try {
@@ -63,21 +62,21 @@ export async function analyzePlagiarism(text, settings, hooks = {}) {
           {
             retries: PLAGIARISM.retries,
             baseDelay: 1500,
-            onRetry: (err, attempt, delay) => onLog(`Requete ${index + 1} : tentative ${attempt} dans ${delay} ms (${err.message})`),
+            onRetry: (err, attempt, delay) => onLog({ key: 'logs.queryRetry', params: { index: index + 1, attempt, delay, error: err.message } }),
           },
         );
         queriesRun += 1;
         return { passage, results };
       } catch (err) {
         if (err instanceof ProviderError && err.permanent) errors.push(err.message);
-        else errors.push(`Requete ${index + 1} : ${err.message}`);
+        else errors.push(`#${index + 1}: ${err.message}`);
         return { passage, results: [] };
       }
     }, PLAGIARISM.concurrency, (done, total) => {
-      onStep(`Recherche web ${done}/${total}`, 0.1 + (done / total) * 0.4);
+      onStep({ key: 'steps.searchingProgress', params: { done, total } }, 0.1 + (done / total) * 0.4);
     });
 
-    // Etape 4 : score preliminaire sur les extraits renvoyes par le moteur.
+    // Step 4: preliminary score on the snippets returned by the engine.
     const candidates = new Map();
     for (const entry of searchResults) {
       if (!entry?.results) continue;
@@ -92,9 +91,9 @@ export async function analyzePlagiarism(text, settings, hooks = {}) {
       }
     }
 
-    onLog(`${queriesRun} requete(s) executee(s), ${candidates.size} candidat(s) a examiner.`);
+    onLog({ key: 'logs.queriesRun', params: { queries: queriesRun, candidates: candidates.size } });
 
-    // Etape 5 : comparaison fine sur les pages les plus prometteuses.
+    // Step 5: detailed comparison on the most promising pages.
     const ranked = [...candidates.values()].sort((a, b) => b.preliminary - a.preliminary);
     const toFetch = settings.useReader === false
       ? []
@@ -102,15 +101,15 @@ export async function analyzePlagiarism(text, settings, hooks = {}) {
 
     const pages = new Map();
     if (toFetch.length) {
-      onStep(`Lecture des sources (${toFetch.length})`, 0.55);
+      onStep({ key: 'steps.reading', params: { count: toFetch.length } }, 0.55);
       await pool(toFetch, async (candidate, i) => {
         const page = await fetchPageText(candidate.result.url, settings, onLog);
         if (page) pages.set(candidate.result.url, page.text);
-        onStep(`Lecture des sources ${i + 1}/${toFetch.length}`, 0.55 + ((i + 1) / toFetch.length) * 0.3);
+        onStep({ key: 'steps.readingProgress', params: { done: i + 1, total: toFetch.length } }, 0.55 + ((i + 1) / toFetch.length) * 0.3);
       }, 3);
     }
 
-    // Etape 6 : score definitif.
+    // Step 6: final score.
     for (const candidate of candidates.values()) {
       const pageText = pages.get(candidate.result.url);
       const comparisonText = pageText ?? `${candidate.result.title} ${candidate.result.snippet}`;
@@ -135,38 +134,39 @@ export async function analyzePlagiarism(text, settings, hooks = {}) {
       });
     }
   } else {
-    onLog('Recherche web desactivee : aucun fournisseur configure.');
+    onLog({ key: 'logs.searchDisabled' });
   }
 
-  onStep('Agregation des resultats', 0.95);
+  onStep({ key: 'steps.aggregatingPlag' }, 0.95);
   return buildResult({ text, passages, matches, errors, webEnabled, queriesRun });
 }
 
 /**
- * Compare le texte a des documents de reference fournis par l'utilisateur.
- * Fonctionne entierement hors ligne : c'est le mode utile quand on veut
- * comparer un devoir a un corpus de classe sans envoyer quoi que ce soit.
+ * Compare the text against reference documents supplied by the user.
+ * Runs entirely offline: this is the useful mode when comparing an assignment
+ * against a class corpus without sending anything anywhere.
  */
 async function compareLocalSources(passages, settings, onLog) {
   const raw = (settings.localSources ?? '').trim();
   if (!raw) return [];
 
-  // Les documents sont separes par une ligne "---".
+  // Documents are separated by a line containing "---".
   const documents = raw.split(/^\s*---+\s*$/m).map((d) => d.trim()).filter((d) => d.length > 80);
   if (!documents.length) return [];
-  onLog(`${documents.length} source(s) locale(s) comparee(s).`);
+  onLog({ key: 'logs.localSources', params: { count: documents.length } });
 
   const matches = [];
   documents.forEach((document, index) => {
-    const firstLine = paragraphs(document)[0]?.slice(0, 80) ?? `Document ${index + 1}`;
+    const excerpt = paragraphs(document)[0]?.slice(0, 80) ?? '';
     for (const passage of passages) {
       const similarity = similarityBetween(passage.text, document);
       if (similarity.score < PLAGIARISM.minSimilarity) continue;
       matches.push({
         source: 'local',
         url: null,
-        domain: 'source locale',
-        title: `Source locale ${index + 1} — ${firstLine}…`,
+        domainKey: 'plagVerdict.localDomain',
+        titleKey: 'plagVerdict.localSource',
+        titleParams: { index: index + 1, excerpt },
         snippet: '',
         matchedText: similarity.matchedText ?? '',
         passageText: passage.text,
@@ -195,11 +195,11 @@ function dedupeByUrl(candidates) {
 }
 
 /**
- * Agrege les correspondances par source et calcule le score global.
+ * Aggregate matches per source and compute the global score.
  */
 export function buildResult({ text, passages, matches, errors, webEnabled, queriesRun }) {
-  // Une expression retrouvee sur beaucoup de domaines differents est une
-  // tournure courante, pas un emprunt : on la neutralise.
+  // A phrase found across many different domains is common phrasing, not a
+  // borrowing: we neutralise it.
   const passageDomains = new Map();
   for (const match of matches) {
     if (match.source !== 'web') continue;
@@ -216,15 +216,18 @@ export function buildResult({ text, passages, matches, errors, webEnabled, queri
 
   const commonPhrases = matches.length - filtered.length;
 
-  // Regroupement par source.
+  // Group by source.
   const bySource = new Map();
   for (const match of filtered) {
-    const key = match.url ?? match.title;
+    const key = match.url ?? match.titleKey ?? match.title;
     if (!bySource.has(key)) {
       bySource.set(key, {
         url: match.url,
         domain: match.domain,
+        domainKey: match.domainKey,
         title: match.title,
+        titleKey: match.titleKey,
+        titleParams: match.titleParams,
         source: match.source,
         verified: match.verified,
         matches: [],
@@ -253,7 +256,7 @@ export function buildResult({ text, passages, matches, errors, webEnabled, queri
   return {
     score,
     band: bandFor(score),
-    verdict: verdictFor(score, webEnabled, sources.length),
+    ...verdictFor(score, webEnabled, sources.length),
     sources,
     matches: reportable.sort((a, b) => b.similarity - a.similarity),
     passageCount: passages.length,
@@ -271,30 +274,22 @@ function bandFor(score) {
   return 'critical';
 }
 
+/** Returns the verdict as a translation key plus its parameters. */
 function verdictFor(score, webEnabled, sourceCount) {
-  if (!webEnabled && sourceCount === 0) {
-    return 'Aucune recherche web effectuee : ce score ne reflete que les sources locales fournies (aucune ici).';
-  }
-  if (sourceCount === 0) {
-    return 'Aucune correspondance significative trouvee dans les sources interrogees.';
-  }
-  if (score < PLAGIARISM_THRESHOLDS.low) {
-    return `${sourceCount} source(s) presentant des similitudes ponctuelles, sous le seuil de signalement global.`;
-  }
-  if (score < PLAGIARISM_THRESHOLDS.moderate) {
-    return `Recouvrement modere avec ${sourceCount} source(s) : verifiez s'il s'agit de citations correctement attribuees.`;
-  }
-  if (score < PLAGIARISM_THRESHOLDS.high) {
-    return `Recouvrement important avec ${sourceCount} source(s) : une part notable du texte existe deja en ligne.`;
-  }
-  return `Recouvrement tres important avec ${sourceCount} source(s) : le texte reprend largement des contenus existants.`;
+  const params = { count: sourceCount };
+  if (!webEnabled && sourceCount === 0) return { verdictKey: 'plagVerdict.noWebNoLocal' };
+  if (sourceCount === 0) return { verdictKey: 'plagVerdict.noMatch' };
+  if (score < PLAGIARISM_THRESHOLDS.low) return { verdictKey: 'plagVerdict.belowThreshold', verdictParams: params };
+  if (score < PLAGIARISM_THRESHOLDS.moderate) return { verdictKey: 'plagVerdict.moderate', verdictParams: params };
+  if (score < PLAGIARISM_THRESHOLDS.high) return { verdictKey: 'plagVerdict.high', verdictParams: params };
+  return { verdictKey: 'plagVerdict.critical', verdictParams: params };
 }
 
-function emptyResult(message) {
+function emptyResult(verdictKey) {
   return {
     score: 0,
     band: 'low',
-    verdict: message,
+    verdictKey,
     sources: [],
     matches: [],
     passageCount: 0,
