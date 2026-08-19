@@ -1,0 +1,13 @@
+{
+  "name": "ai-plagiarism-detector",
+  "version": "1.0.0",
+  "description": "Detecteur d'IA et de plagiat 100% cote client (glass skin UI).",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "python3 -m http.server 4173",
+    "serve": "python3 -m http.server 4173",
+    "test": "node tests/run.js"
+  },
+  "license": "MIT"
+}

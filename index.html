@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI-Plagiarism-Detector — Détecteur d'IA et de plagiat</title>
+<meta name="description" content="Détecteur de texte généré par IA et de plagiat, 100 % côté client : plusieurs centaines de métriques, ensemble de détecteurs, recherche web configurable, rapport téléchargeable.">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔍</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/base.css">
+<link rel="stylesheet" href="assets/css/glass.css">
+<link rel="stylesheet" href="assets/css/components.css">
+</head>
+<body>
+
+<div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+
+<header class="topbar-wrap">
+  <div class="topbar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">🔍</div>
+    <div>
+      <div class="brand-name">AI-Plagiarism-Detector</div>
+      <div class="brand-tag">Détection IA &amp; plagiat — analyse locale</div>
+    </div>
+  </div>
+
+  <label class="switch no-print" title="Affiche toutes les métriques et les résultats intermédiaires">
+    <input type="checkbox" id="expert-toggle">
+    <span class="switch-track"></span>
+    <span class="switch-label">Mode expert</span>
+  </label>
+
+  <button class="btn btn-icon glass-interactive no-print" id="theme-btn" title="Changer de thème" aria-label="Changer de thème">🌙</button>
+  <button class="btn glass-interactive no-print" id="settings-btn">⚙ Réglages</button>
+  </div>
+</header>
+
+<main class="shell">
+
+  <section class="hero">
+    <h1>Analysez un texte&nbsp;: <span class="grad">origine IA</span> et <span class="grad">plagiat</span></h1>
+    <p>
+      Plusieurs centaines de métriques linguistiques, un ensemble de détecteurs indépendants et une recherche
+      web configurable. Tout s'exécute dans votre navigateur&nbsp;; rien n'est envoyé ailleurs que vers les API que
+      vous configurez vous-même.
+    </p>
+  </section>
+
+  <div class="notice no-print" style="margin-bottom: var(--gap)">
+    <span class="notice-icon" aria-hidden="true">⚠️</span>
+    <div>
+      <strong>Ces scores sont des estimations, pas des preuves.</strong>
+      Les détecteurs d'IA plafonnent autour de 80–90&nbsp;% de précision sur du texte brut et deviennent nettement
+      moins fiables sur du texte réécrit, paraphrasé ou mixte humain&nbsp;+&nbsp;IA. Les faux positifs touchent
+      particulièrement les locuteurs non natifs et les écrits formels.
+      <strong>Aucune décision concernant une personne ne doit reposer sur ce résultat.</strong>
+      <a href="#disclaimers">Lire les limites complètes</a>
+    </div>
+  </div>
+
+  <!-- ============ 1. Saisie ============ -->
+  <section class="glass section" id="input-section">
+    <div class="section-head">
+      <h2>1. Texte à analyser</h2>
+      <div class="tabs" role="tablist" aria-label="Mode de saisie">
+        <button class="tab" role="tab" id="tab-paste" aria-selected="true" aria-controls="pane-paste">Coller le texte</button>
+        <button class="tab" role="tab" id="tab-file" aria-selected="false" aria-controls="pane-file">Importer un fichier</button>
+      </div>
+    </div>
+
+    <div id="pane-paste" role="tabpanel" aria-labelledby="tab-paste">
+      <label class="visually-hidden" for="text-input">Texte à analyser</label>
+      <textarea class="textarea" id="text-input" placeholder="Collez ici le texte à analyser (au moins 40 mots ; comptez 300 mots pour une confiance correcte)…" spellcheck="false"></textarea>
+    </div>
+
+    <div id="pane-file" role="tabpanel" aria-labelledby="tab-file" hidden>
+      <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Déposer ou choisir un fichier">
+        <div class="dropzone-icon" aria-hidden="true">📄</div>
+        <div><strong>Déposez un fichier</strong> ou cliquez pour le choisir</div>
+        <div class="dropzone-formats">.txt · .md · .rtf · .html · .csv · .docx · .odt · .pdf — 25 Mo max, 100 000 mots max</div>
+      </div>
+      <input type="file" id="file-input" class="visually-hidden" accept=".txt,.md,.markdown,.csv,.rtf,.html,.htm,.docx,.odt,.pdf">
+      <div id="file-status" class="row" style="margin-top:12px" hidden></div>
+    </div>
+
+    <div class="row" style="margin-top:16px">
+      <span class="small dim" id="counter">0 mot · 0 caractère</span>
+      <div class="row row-end">
+        <label class="switch"><input type="checkbox" id="opt-ai" checked><span class="switch-track"></span><span class="switch-label">Analyse IA</span></label>
+        <label class="switch"><input type="checkbox" id="opt-plag" checked><span class="switch-track"></span><span class="switch-label">Analyse plagiat</span></label>
+        <button class="btn glass-interactive btn-sm" id="sample-btn">Exemple</button>
+        <button class="btn glass-interactive btn-sm" id="clear-btn">Effacer</button>
+        <button class="btn btn-primary" id="analyze-btn">Lancer l'analyse</button>
+      </div>
+    </div>
+
+    <div id="input-error" class="notice notice-danger" style="margin-top:14px" hidden></div>
+    <div id="provider-hint" class="notice notice-info" style="margin-top:14px" hidden></div>
+  </section>
+
+  <!-- ============ Progression ============ -->
+  <section class="glass section no-print" id="progress-section" hidden>
+    <div class="section-head"><h2>Analyse en cours</h2>
+      <button class="btn btn-sm btn-ghost" id="cancel-btn">Annuler</button>
+    </div>
+    <div class="progress">
+      <div class="progress-step"><span class="spinner" id="progress-spinner"></span><span id="progress-label">Préparation…</span><span class="row-end small dim tabular" id="progress-pct">0 %</span></div>
+      <div class="progress-bar"><i id="progress-fill" style="width:0%"></i></div>
+      <div class="log" id="progress-log" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- ============ 2. Résultats IA ============ -->
+  <section class="glass section" id="ai-section" hidden>
+    <div class="section-head">
+      <h2>2. Détection d'IA</h2>
+      <span class="badge badge-neutral" id="ai-confidence-badge"></span>
+      <span class="badge badge-neutral" id="ai-features-badge"></span>
+    </div>
+
+    <div class="score-card">
+      <div class="gauge">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="gauge-track" cx="60" cy="60" r="52"></circle>
+          <circle class="gauge-value" id="ai-gauge" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="326.7"></circle>
+        </svg>
+        <div class="gauge-center">
+          <div class="gauge-number" id="ai-score">—</div>
+          <div class="gauge-unit">probabilité IA</div>
+        </div>
+      </div>
+      <div class="score-body">
+        <div class="score-verdict" id="ai-verdict"></div>
+        <div class="scale" id="ai-scale" aria-hidden="true"></div>
+        <div class="scale-marker"><i id="ai-marker" style="left:0%"></i></div>
+        <div class="scale-legend"><span>humain</span><span>indéterminé</span><span>mixte</span><span>IA probable</span><span>IA</span></div>
+        <ul class="reasons" id="ai-reasons" style="margin-top:16px"></ul>
+      </div>
+    </div>
+
+    <div style="margin-top:20px" id="ai-detectors"></div>
+    <div style="margin-top:14px" id="ai-expert" hidden></div>
+  </section>
+
+  <!-- ============ 3. Résultats plagiat ============ -->
+  <section class="glass section" id="plag-section" hidden>
+    <div class="section-head">
+      <h2>3. Détection de plagiat</h2>
+      <span class="badge badge-neutral" id="plag-queries-badge"></span>
+    </div>
+
+    <div class="score-card">
+      <div class="gauge">
+        <svg viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="gauge-track" cx="60" cy="60" r="52"></circle>
+          <circle class="gauge-value" id="plag-gauge" cx="60" cy="60" r="52" stroke-dasharray="326.7" stroke-dashoffset="326.7"></circle>
+        </svg>
+        <div class="gauge-center">
+          <div class="gauge-number" id="plag-score">—</div>
+          <div class="gauge-unit">recouvrement</div>
+        </div>
+      </div>
+      <div class="score-body">
+        <div class="score-verdict" id="plag-verdict"></div>
+        <p class="small muted" id="plag-note"></p>
+      </div>
+    </div>
+
+    <div style="margin-top:18px" id="plag-sources"></div>
+    <div style="margin-top:12px" id="plag-errors"></div>
+  </section>
+
+  <!-- ============ Export ============ -->
+  <section class="glass section no-print" id="export-section" hidden>
+    <div class="section-head"><h2>Rapport</h2></div>
+    <p class="small muted">Le rapport reprend les deux scores, le détail des détecteurs, les sources trouvées et l'intégralité des avertissements méthodologiques.</p>
+    <div class="row" style="margin-top:12px">
+      <button class="btn btn-primary" id="report-html-btn">Télécharger le rapport (.html)</button>
+      <button class="btn glass-interactive" id="report-pdf-btn">Imprimer / exporter en PDF</button>
+      <button class="btn glass-interactive" id="report-json-btn">Données brutes (.json)</button>
+    </div>
+  </section>
+
+  <!-- ============ Avertissements ============ -->
+  <section class="glass section" id="disclaimers">
+    <div class="section-head"><h2>Limites &amp; précautions d'usage</h2></div>
+    <div id="disclaimer-list"></div>
+    <details class="panel" style="margin-top:14px">
+      <summary>Méthode — détection d'IA</summary>
+      <div class="panel-body small muted" id="method-ai"></div>
+    </details>
+    <details class="panel">
+      <summary>Méthode — détection de plagiat</summary>
+      <div class="panel-body small muted" id="method-plag"></div>
+    </details>
+  </section>
+
+  <footer class="footer">
+    <p>
+      <strong>AI-Plagiarism-Detector</strong> — application statique, exécutée entièrement dans votre navigateur.
+      Les clés d'API que vous saisissez restent dans le stockage local de ce navigateur.
+    </p>
+    <ul>
+      <li><a href="docs/METRICS.md">Documentation des métriques</a></li>
+      <li><a href="docs/LIMITATIONS.md">Limites connues et sources</a></li>
+      <li><a href="docs/API-SETUP.md">Configuration des API de recherche</a></li>
+    </ul>
+  </footer>
+</main>
+
+<!-- ============ Tiroir de réglages ============ -->
+<div class="drawer-backdrop" id="drawer-backdrop"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden>
+  <div class="drawer-head">
+    <h2 id="drawer-title">Réglages</h2>
+    <button class="btn btn-icon glass-interactive" id="drawer-close" aria-label="Fermer">✕</button>
+  </div>
+
+  <div class="notice notice-info" style="margin-bottom:14px">
+    <span class="notice-icon" aria-hidden="true">🔐</span>
+    <div class="tiny">
+      Les clés sont enregistrées dans le <code>localStorage</code> de ce navigateur et ne sont transmises
+      qu'au fournisseur que vous sélectionnez. Sur un poste partagé, videz les réglages après usage.
+    </div>
+  </div>
+
+  <div class="drawer-group">
+    <h3>Recherche web (plagiat)</h3>
+    <span class="hint">Sans fournisseur, la détection de plagiat se limite aux sources locales que vous collez plus bas.</span>
+    <div class="drawer-fields">
+      <div class="field">
+        <label for="set-search-provider">Fournisseur</label>
+        <select class="select" id="set-search-provider"></select>
+      </div>
+      <div class="field" id="field-search-key">
+        <label for="set-search-key">Clé d'API</label>
+        <input class="input" id="set-search-key" type="password" autocomplete="off" placeholder="collez votre clé">
+      </div>
+      <div class="field" id="field-search-extra" hidden>
+        <label for="set-search-extra" id="label-search-extra">Paramètre</label>
+        <input class="input" id="set-search-extra" type="text" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="set-max-queries">Budget de requêtes par analyse</label>
+        <input class="input" id="set-max-queries" type="number" min="4" max="120" step="1">
+        <span class="hint">Plus de requêtes = couverture plus profonde, mais consommation de quota proportionnelle.</span>
+      </div>
+      <label class="switch"><input type="checkbox" id="set-use-reader" checked><span class="switch-track"></span><span class="switch-label">Télécharger les pages pour comparaison fine</span></label>
+      <div class="field">
+        <label for="set-reader">Service d'extraction de texte</label>
+        <input class="input mono" id="set-reader" type="text" spellcheck="false">
+        <span class="hint">Un navigateur ne peut pas lire une page tierce directement. Les URL candidates transitent par ce service. <code>{url}</code> est remplacé par l'adresse.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="drawer-group">
+    <h3>Détecteur IA distant (optionnel)</h3>
+    <span class="hint">Ajoute une voix supplémentaire à l'ensemble. <strong>Le texte analysé est alors envoyé à ce fournisseur.</strong></span>
+    <div class="drawer-fields">
+      <div class="field">
+        <label for="set-ai-provider">Fournisseur</label>
+        <select class="select" id="set-ai-provider"></select>
+      </div>
+      <div class="field" id="field-ai-key" hidden>
+        <label for="set-ai-key">Clé d'API</label>
+        <input class="input" id="set-ai-key" type="password" autocomplete="off">
+      </div>
+      <div class="field" id="field-ai-extra" hidden>
+        <label for="set-ai-extra" id="label-ai-extra">URL de base</label>
+        <input class="input" id="set-ai-extra" type="text" autocomplete="off">
+      </div>
+      <div class="field" id="field-ai-model" hidden>
+        <label for="set-ai-model">Modèle</label>
+        <input class="input mono" id="set-ai-model" type="text" spellcheck="false">
+      </div>
+    </div>
+  </div>
+
+  <div class="drawer-group">
+    <h3>Sources locales</h3>
+    <span class="hint">Documents de référence à comparer hors ligne (copies d'élèves, corpus interne…). Séparez chaque document par une ligne contenant <code>---</code>.</span>
+    <label class="visually-hidden" for="set-local-sources">Sources locales</label>
+    <textarea class="textarea mono" id="set-local-sources" style="min-height:140px" placeholder="Premier document…&#10;---&#10;Deuxième document…"></textarea>
+  </div>
+
+  <div class="drawer-group">
+    <h3>Seuil d'alerte IA</h3>
+    <span class="hint">Score à partir duquel l'interface signale « probablement IA ». Un seuil bas multiplie les faux positifs&nbsp;; 85&nbsp;% est le réglage recommandé.</span>
+    <div class="drawer-fields">
+      <div class="field">
+        <label for="set-threshold">Seuil : <span id="threshold-value" class="tabular">85</span> %</label>
+        <input type="range" id="set-threshold" min="55" max="95" step="5" style="width:100%">
+      </div>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:18px">
+    <button class="btn glass-interactive" id="reset-settings">Réinitialiser</button>
+    <button class="btn btn-primary row-end" id="save-settings">Enregistrer</button>
+  </div>
+</aside>
+
+<script type="module" src="assets/js/app.js"></script>
+<noscript>
+  <div class="shell"><div class="notice notice-danger" style="margin-top:20px">
+    Cette application a besoin de JavaScript : toute l'analyse s'exécute dans votre navigateur.
+  </div></div>
+</noscript>
+</body>
+</html>
