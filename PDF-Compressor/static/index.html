@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Compresser PDF – PDF Compressor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: { brand: { 50: '#fef2f2', 100: '#fee2e2', 500: '#e5322d', 600: '#d02b26', 700: '#b0231f' } } } }
+    };
+  </script>
+  <style>
+    .dropzone-active { border-color: #e5322d !important; background: #fef2f2 !important; }
+    @keyframes indeterminate { 0% { left: -40%; } 100% { left: 100%; } }
+    .bar-indeterminate { position: absolute; width: 40%; animation: indeterminate 1.2s ease-in-out infinite; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col antialiased">
+
+  <!-- ====================== HEADER ====================== -->
+  <header class="bg-white border-b border-slate-200">
+    <div class="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+      <a href="/" class="flex items-center gap-2 font-extrabold text-xl tracking-tight">
+        <span class="inline-flex items-center justify-center w-9 h-9 rounded-lg bg-brand-500 text-white">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 9l6 6m0-6l-6 6M4 4h16v16H4z"/></svg>
+        </span>
+        PDF<span class="text-brand-500">Compressor</span>
+      </a>
+      <span class="hidden sm:flex items-center gap-2 text-sm text-slate-500">
+        <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 11c0-1.1.9-2 2-2s2 .9 2 2v2H8v-2a4 4 0 118 0M6 13h12v8H6z"/></svg>
+        100 % local – aucun fichier conservé
+      </span>
+    </div>
+  </header>
+
+  <main class="flex-1 w-full max-w-6xl mx-auto px-4 py-10">
+
+    <!-- ====================== ÉTAPE 1 : UPLOAD ====================== -->
+    <section id="view-upload" class="text-center">
+      <h1 class="text-3xl sm:text-4xl font-bold text-slate-900">Compresser un fichier PDF</h1>
+      <p class="mt-3 text-lg text-slate-500">Réduisez la taille de vos PDF en conservant une qualité optimale.</p>
+
+      <div id="dropzone"
+           class="mt-10 mx-auto max-w-2xl border-2 border-dashed border-slate-300 rounded-2xl bg-white px-6 py-16 transition cursor-pointer hover:border-brand-500">
+        <button id="btn-select" type="button"
+                class="bg-brand-500 hover:bg-brand-600 text-white text-xl font-semibold px-10 py-5 rounded-xl shadow-lg shadow-red-200 transition">
+          Sélectionner les fichiers PDF
+        </button>
+        <p class="mt-4 text-slate-500">ou déposez les PDF ici</p>
+      </div>
+      <input id="file-input" type="file" accept="application/pdf,.pdf" multiple class="hidden" />
+    </section>
+
+    <!-- ====================== ÉTAPE 2 : OPTIONS ====================== -->
+    <section id="view-options" class="hidden">
+      <div class="grid lg:grid-cols-[1fr_360px] gap-8">
+        <!-- Liste des fichiers -->
+        <div>
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-bold text-slate-900">Fichiers sélectionnés <span id="file-count" class="text-slate-400 font-normal"></span></h2>
+            <button id="btn-add-more" type="button"
+                    class="inline-flex items-center gap-1 text-brand-500 hover:text-brand-700 font-semibold">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M12 5v14M5 12h14"/></svg>
+              Ajouter
+            </button>
+          </div>
+          <div id="file-list" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4"></div>
+        </div>
+
+        <!-- Panneau latéral -->
+        <aside class="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 h-fit lg:sticky lg:top-6">
+          <h3 class="text-lg font-bold text-center text-slate-900 pb-4 border-b border-slate-100">Niveau de compression</h3>
+          <div id="levels" class="mt-4 space-y-3"></div>
+          <button id="btn-compress" type="button"
+                  class="mt-6 w-full flex items-center justify-center gap-2 bg-brand-500 hover:bg-brand-600 text-white text-lg font-semibold py-4 rounded-xl shadow-lg shadow-red-200 transition">
+            Compresser PDF
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 5l7 7-7 7M5 12h14"/></svg>
+          </button>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ====================== ÉTAPE 3 : TRAITEMENT ====================== -->
+    <section id="view-processing" class="hidden text-center py-16">
+      <div class="mx-auto w-16 h-16 border-4 border-brand-100 border-t-brand-500 rounded-full animate-spin"></div>
+      <h2 id="processing-title" class="mt-8 text-2xl font-bold text-slate-900">Envoi des fichiers…</h2>
+      <p id="processing-sub" class="mt-2 text-slate-500">Merci de patienter</p>
+      <div class="mt-8 mx-auto max-w-md h-3 bg-slate-200 rounded-full overflow-hidden relative">
+        <div id="progress-bar" class="h-full bg-brand-500 rounded-full transition-all duration-200" style="width:0%"></div>
+      </div>
+      <p id="progress-text" class="mt-2 text-sm text-slate-500">0 %</p>
+    </section>
+
+    <!-- ====================== ÉTAPE 4 : RÉSULTAT ====================== -->
+    <section id="view-result" class="hidden text-center">
+      <h2 class="text-3xl font-bold text-slate-900">Vos PDF ont été compressés !</h2>
+
+      <div id="summary" class="mt-8 mx-auto max-w-md flex items-center justify-center gap-6"></div>
+
+      <button id="btn-download" type="button"
+              class="mt-8 inline-flex items-center gap-3 bg-brand-500 hover:bg-brand-600 text-white text-xl font-semibold px-10 py-5 rounded-xl shadow-lg shadow-red-200 transition">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v12m0 0l-5-5m5 5l5-5M4 20h16"/></svg>
+        <span id="btn-download-label">Télécharger le PDF compressé</span>
+      </button>
+
+      <div id="result-details" class="mt-10 mx-auto max-w-2xl text-left bg-white border border-slate-200 rounded-2xl divide-y divide-slate-100"></div>
+
+      <button id="btn-restart" type="button" class="mt-8 text-brand-500 hover:text-brand-700 font-semibold">
+        ← Compresser d'autres fichiers
+      </button>
+    </section>
+
+    <!-- Zone d'erreur globale -->
+    <div id="error-box" class="hidden mt-8 mx-auto max-w-2xl bg-red-50 border border-red-200 text-red-700 rounded-xl px-5 py-4 text-sm"></div>
+  </main>
+
+  <footer class="py-6 text-center text-xs text-slate-400">
+    Traitement effectué sur votre machine. Les fichiers sont supprimés immédiatement après compression.
+  </footer>
+
+  <!-- Gabarit d'une carte fichier -->
+  <template id="tpl-file">
+    <div class="relative group bg-white border border-slate-200 rounded-xl p-4 flex flex-col items-center shadow-sm hover:shadow-md transition">
+      <button type="button" data-remove title="Retirer"
+              class="absolute top-2 right-2 w-7 h-7 rounded-full bg-slate-100 hover:bg-brand-500 hover:text-white text-slate-500 flex items-center justify-center transition opacity-80 group-hover:opacity-100">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+      <div class="w-16 h-20 rounded-md bg-brand-50 border border-brand-100 flex items-end justify-center pb-2">
+        <span class="text-xs font-bold text-white bg-brand-500 px-1.5 py-0.5 rounded">PDF</span>
+      </div>
+      <p data-name class="mt-3 text-sm font-medium text-slate-700 w-full text-center truncate"></p>
+      <p data-size class="text-xs text-slate-400"></p>
+    </div>
+  </template>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- Configuration des 3 niveaux (doit correspondre au backend) ----------
+  const LEVELS = [
+    { id: 'extreme',     title: 'Extreme Compression',     desc: 'Moins de qualité, haute compression' },
+    { id: 'recommended', title: 'Recommended Compression', desc: 'Bonne qualité, bonne compression' },
+    { id: 'less',        title: 'Less compression',        desc: 'Haute qualité, moins de compression' },
+  ];
+  const MAX_FILE_SIZE = 200 * 1024 * 1024;
+  const MAX_FILES = 20;
+
+  // ---------- État ----------
+  let files = [];               // File[]
+  let level = 'recommended';
+  let resultBlob = null;
+  let resultName = '';
+
+  // ---------- Raccourcis DOM ----------
+  const $ = (id) => document.getElementById(id);
+  const views = ['upload', 'options', 'processing', 'result'];
+  const input = $('file-input');
+  const dropzone = $('dropzone');
+
+  function show(view) {
+    views.forEach(v => $('view-' + v).classList.toggle('hidden', v !== view));
+    if (view !== 'options' && view !== 'upload') hideError();
+  }
+  function showError(msg) { const b = $('error-box'); b.innerHTML = msg; b.classList.remove('hidden'); }
+  function hideError() { $('error-box').classList.add('hidden'); }
+
+  function fmtSize(bytes) {
+    if (bytes < 1024) return bytes + ' o';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' Ko';
+    return (bytes / 1024 / 1024).toFixed(2) + ' Mo';
+  }
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // ---------- Ajout de fichiers (avec validation côté client) ----------
+  function addFiles(list) {
+    hideError();
+    const rejected = [];
+    for (const f of list) {
+      const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name);
+      if (!isPdf) { rejected.push(`${escapeHtml(f.name)} : format non supporté`); continue; }
+      if (f.size > MAX_FILE_SIZE) { rejected.push(`${escapeHtml(f.name)} : trop volumineux (max 200 Mo)`); continue; }
+      if (files.length >= MAX_FILES) { rejected.push(`${escapeHtml(f.name)} : maximum ${MAX_FILES} fichiers`); continue; }
+      files.push(f);
+    }
+    if (files.length) { renderFiles(); show('options'); }
+    if (rejected.length) showError('<strong>Fichiers ignorés :</strong><br>' + rejected.join('<br>'));
+  }
+
+  function renderFiles() {
+    const list = $('file-list');
+    list.innerHTML = '';
+    const tpl = $('tpl-file');
+    files.forEach((f, i) => {
+      const node = tpl.content.cloneNode(true);
+      node.querySelector('[data-name]').textContent = f.name;
+      node.querySelector('[data-name]').title = f.name;
+      node.querySelector('[data-size]').textContent = fmtSize(f.size);
+      node.querySelector('[data-remove]').addEventListener('click', () => {
+        files.splice(i, 1);
+        if (!files.length) { show('upload'); hideError(); } else renderFiles();
+      });
+      list.appendChild(node);
+    });
+    $('file-count').textContent = `(${files.length})`;
+  }
+
+  // ---------- Sélecteur de niveau ----------
+  function renderLevels() {
+    const box = $('levels');
+    box.innerHTML = '';
+    LEVELS.forEach(l => {
+      const active = l.id === level;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'w-full text-left rounded-xl border-2 px-4 py-3 flex items-center gap-3 transition ' +
+        (active ? 'border-brand-500 bg-brand-50' : 'border-slate-200 hover:border-slate-300');
+      btn.innerHTML = `
+        <span class="flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center ${active ? 'border-brand-500' : 'border-slate-300'}">
+          ${active ? '<span class="w-2.5 h-2.5 rounded-full bg-brand-500"></span>' : ''}
+        </span>
+        <span>
+          <span class="block font-bold uppercase text-sm tracking-wide ${active ? 'text-brand-600' : 'text-slate-800'}">${l.title}</span>
+          <span class="block text-sm text-slate-500">${l.desc}</span>
+        </span>`;
+      btn.addEventListener('click', () => { level = l.id; renderLevels(); });
+      box.appendChild(btn);
+    });
+  }
+
+  // ---------- Progression ----------
+  function setProgress(pct, indeterminate = false) {
+    const bar = $('progress-bar');
+    if (indeterminate) {
+      bar.style.width = '';
+      bar.classList.add('bar-indeterminate');
+      $('progress-text').textContent = '';
+    } else {
+      bar.classList.remove('bar-indeterminate');
+      bar.style.width = pct + '%';
+      $('progress-text').textContent = Math.round(pct) + ' %';
+    }
+  }
+
+  // ---------- Envoi au serveur ----------
+  // XMLHttpRequest (et non fetch) pour avoir la progression de l'upload.
+  function compress() {
+    if (!files.length) return;
+    const form = new FormData();
+    files.forEach(f => form.append('files', f, f.name));
+    form.append('level', level);
+
+    show('processing');
+    $('processing-title').textContent = 'Envoi des fichiers…';
+    $('processing-sub').textContent = `${files.length} fichier(s) – ${fmtSize(files.reduce((s, f) => s + f.size, 0))}`;
+    setProgress(0);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/compress');
+    xhr.responseType = 'blob';
+
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) setProgress((e.loaded / e.total) * 100); };
+    xhr.upload.onload = () => {
+      $('processing-title').textContent = 'Compression en cours…';
+      $('processing-sub').textContent = 'Optimisation des images, polices et métadonnées';
+      setProgress(0, true);
+    };
+
+    xhr.onload = async () => {
+      if (xhr.status === 200) {
+        let stats = null;
+        try { stats = JSON.parse(xhr.getResponseHeader('X-Compression-Stats')); } catch (_) {}
+        resultBlob = xhr.response;
+        resultName = decodeURIComponent(xhr.getResponseHeader('X-Download-Name') || 'compressed.pdf');
+        renderResult(stats);
+        show('result');
+        return;
+      }
+      // Erreur : le corps est du JSON renvoyé sous forme de Blob
+      let msg = `Erreur serveur (${xhr.status}).`;
+      try {
+        const data = JSON.parse(await xhr.response.text());
+        if (data.results) {
+          msg = '<strong>' + escapeHtml(data.detail) + '</strong><br>' +
+            data.results.map(r => `${escapeHtml(r.name)} : ${escapeHtml(r.error || 'OK')}`).join('<br>');
+        } else if (data.detail) {
+          msg = escapeHtml(typeof data.detail === 'string' ? data.detail : JSON.stringify(data.detail));
+        }
+      } catch (_) {}
+      show('options');
+      showError(msg);
+    };
+    xhr.onerror = () => {
+      show('options');
+      showError('Impossible de contacter le serveur. Vérifiez qu\'il est bien lancé.');
+    };
+    xhr.send(form);
+  }
+
+  // ---------- Écran de résultat ----------
+  function renderResult(stats) {
+    const results = stats?.results || [];
+    const ok = results.filter(r => r.ok);
+    const before = ok.reduce((s, r) => s + r.original_size, 0);
+    const after = ok.reduce((s, r) => s + r.compressed_size, 0);
+    const pct = before ? Math.max(0, Math.round((1 - after / before) * 100)) : 0;
+
+    // Anneau de progression façon iLovePDF (cercle SVG)
+    const C = 2 * Math.PI * 42;
+    $('summary').innerHTML = `
+      <div class="relative w-28 h-28">
+        <svg class="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
+          <circle cx="50" cy="50" r="42" fill="none" stroke="#e2e8f0" stroke-width="10"/>
+          <circle cx="50" cy="50" r="42" fill="none" stroke="#e5322d" stroke-width="10" stroke-linecap="round"
+                  stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - pct / 100)}"/>
+        </svg>
+        <span class="absolute inset-0 flex items-center justify-center text-2xl font-bold text-slate-900">${pct}%</span>
+      </div>
+      <div class="text-left">
+        <p class="text-slate-500 text-sm">Vos PDF sont maintenant ${pct}% plus légers</p>
+        <p class="text-lg font-semibold text-slate-900 mt-1">${fmtSize(before)} → ${fmtSize(after)}</p>
+      </div>`;
+
+    $('btn-download-label').textContent = resultName.endsWith('.zip')
+      ? 'Télécharger les PDF (.zip)'
+      : 'Télécharger le PDF compressé';
+
+    $('result-details').innerHTML = results.map(r => r.ok ? `
+      <div class="flex items-center justify-between gap-4 px-5 py-3">
+        <span class="truncate text-sm font-medium text-slate-700" title="${escapeHtml(r.name)}">${escapeHtml(r.name)}</span>
+        <span class="flex-shrink-0 text-sm text-slate-500">
+          ${fmtSize(r.original_size)} → <strong class="text-slate-800">${fmtSize(r.compressed_size)}</strong>
+          ${r.kept_original
+            ? '<span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">déjà optimisé</span>'
+            : `<span class="ml-2 text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">-${r.saved_percent}%</span>`}
+        </span>
+      </div>` : `
+      <div class="flex items-center justify-between gap-4 px-5 py-3 bg-red-50/50">
+        <span class="truncate text-sm font-medium text-slate-700">${escapeHtml(r.name)}</span>
+        <span class="flex-shrink-0 text-xs text-red-600">${escapeHtml(r.error)}</span>
+      </div>`).join('');
+  }
+
+  function download() {
+    if (!resultBlob) return;
+    const url = URL.createObjectURL(resultBlob);
+    const a = document.createElement('a');
+    a.href = url; a.download = resultName;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  function restart() {
+    files = []; resultBlob = null; resultName = ''; level = 'recommended';
+    renderLevels(); hideError(); show('upload');
+  }
+
+  // ---------- Événements ----------
+  $('btn-select').addEventListener('click', (e) => { e.stopPropagation(); input.click(); });
+  dropzone.addEventListener('click', () => input.click());
+  $('btn-add-more').addEventListener('click', () => input.click());
+  input.addEventListener('change', () => { addFiles(input.files); input.value = ''; });
+  $('btn-compress').addEventListener('click', compress);
+  $('btn-download').addEventListener('click', download);
+  $('btn-restart').addEventListener('click', restart);
+
+  // Glisser-déposer : actif sur toute la page (étapes upload et options)
+  ['dragenter', 'dragover'].forEach(evt => document.addEventListener(evt, (e) => {
+    e.preventDefault();
+    dropzone.classList.add('dropzone-active');
+  }));
+  ['dragleave', 'drop'].forEach(evt => document.addEventListener(evt, (e) => {
+    e.preventDefault();
+    if (evt === 'dragleave' && e.relatedTarget) return;
+    dropzone.classList.remove('dropzone-active');
+  }));
+  document.addEventListener('drop', (e) => {
+    const onUploadOrOptions = !$('view-upload').classList.contains('hidden') || !$('view-options').classList.contains('hidden');
+    if (onUploadOrOptions && e.dataTransfer?.files?.length) addFiles(e.dataTransfer.files);
+  });
+
+  renderLevels();
+})();
+</script>
+</body>
+</html>
